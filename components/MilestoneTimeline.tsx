@@ -2,6 +2,9 @@ import { CHECKPOINT_GROUPS } from "@/lib/knowledge/checkpoints";
 import type { CheckpointIndicator } from "@/lib/knowledge/checkpoints";
 import type { CheckpointCompliance, IndicatorCompliance } from "@/lib/compliance";
 import type { CheckpointSourceData } from "@/lib/types";
+import { classifySeverity, TIER_RANK } from "@/lib/severity";
+import type { SeverityTier } from "@/lib/severity";
+import { TIER_STYLES } from "./SeverityBadge";
 
 type SimpleStatus = "sesuai" | "belum-sesuai" | "unknown";
 
@@ -11,24 +14,64 @@ const STATUS_LABEL: Record<CheckpointCompliance["status"], string> = {
   unknown: "Tidak ada data",
 };
 
-const STATUS_DOT: Record<SimpleStatus | "future", string> = {
-  sesuai: "border-status-good bg-status-good text-white",
-  "belum-sesuai": "border-status-critical bg-status-critical text-white",
+const TIER_DOT_CLASS: Record<SeverityTier, string> = {
+  hijau: "border-status-good bg-status-good text-white",
+  kuning: "border-status-warning bg-status-warning text-white",
+  oranye: "border-status-serious bg-status-serious text-white",
+  merah: "border-status-critical bg-status-critical text-white",
+};
+
+const STATUS_DOT: Record<"unknown" | "future", string> = {
   unknown: "border-status-unknown bg-status-unknown text-white",
   future: "border-dashed border-baseline bg-surface text-ink-muted",
 };
 
 const STATUS_TEXT_SM: Record<SimpleStatus, string> = {
-  sesuai: "text-status-good",
-  "belum-sesuai": "text-status-critical",
+  sesuai: TIER_STYLES.hijau.text,
+  "belum-sesuai": TIER_STYLES.kuning.text,
   unknown: "text-ink-muted",
 };
 
-const READING_TEXT_SM: Record<Reading["status"], string> = {
-  ok: "text-status-good",
-  violation: "text-status-critical",
-  unknown: "text-ink-muted",
-};
+/** trustLkOkValue (lib/compliance.ts) selalu memakai frasa persis "belum
+ * diisi" di `note`-nya untuk SATU dari tiga sebab distrust - kolom Kendala
+ * terkait literal bilang belum diisi (beda dari 2 sebab lain: "belum login LK
+ * sama sekali" / selisih Aplikasi vs LK, yang frasanya beda). Dipakai untuk
+ * bedakan "unknown karena datanya genuinely belum pernah dilaporkan" (baiknya
+ * dianggap kasus terburuk) dari "unknown karena sekadar tidak bisa dipastikan
+ * akurat" (baiknya tetap netral abu-abu). */
+function isBelumDiisiNote(note: string | undefined): boolean {
+  return !!note && /belum\s*(di\s*)?isi/i.test(note);
+}
+
+/**
+ * Tier satu bacaan sumber (LK/Aplikasi) - SELALU dari persentase ASLI, tidak
+ * di-floor/clamp berdasarkan status "violation" (beda dari CheckpointCompliancePanel,
+ * yang menampilkan teks literal "Belum Sesuai" bersebelahan sehingga hijau
+ * jadi kontradiktif di sana - baris checkpoint di sini TIDAK menampilkan teks
+ * status biner sama sekali, jadi warna murni ikut angka kelengkapan asli, mis.
+ * 94.74% tetap Hijau walau checkpoint-nya belum genap 100%. Kontradiksi macam
+ * "Aplikasi bilang oke tapi LK melaporkan kendala nyata" (kendalaMismatch)
+ * dikomunikasikan lewat tag "ada kendala LK" terpisah, BUKAN dengan
+ * menurunkan warna angkanya jadi abu-abu/merah.
+ *
+ * Pengecualian: "unknown" yang sebabnya kolom Kendala terkait literal bilang
+ * "belum diisi" (lihat isBelumDiisiNote) diperlakukan sebagai kasus TERBURUK
+ * (Merah) - datanya bukan cuma "tidak dijamin akurat", tapi genuinely belum
+ * ada laporan sama sekali, supaya admin tidak salah kira "belum ada masalah".
+ * "unknown" karena sebab lain (mis. belum login LK) tetap abu-abu netral -
+ * itu genuinely tidak diketahui, bukan berarti pasti buruk.
+ */
+function readingTier(r: Reading): SeverityTier | null {
+  if (r.status === "unknown") return isBelumDiisiNote(r.note) ? "merah" : null;
+  if (r.completionPct == null) return null;
+  return classifySeverity(r.completionPct, "higherIsBetter").tier;
+}
+
+function readingText(r: Reading): string {
+  if (r.status === "unknown" && isBelumDiisiNote(r.note)) return "0%, belum diisi";
+  if (r.status === "ok") return "Lengkap";
+  return r.completionPct != null ? `${r.completionPct}%` : "-";
+}
 
 type Source = Exclude<CheckpointSourceData, null>;
 
@@ -37,10 +80,14 @@ const SOURCE_LABEL: Record<Source, string> = { "LK Fasil": "LK", "Aplikasi Revit
 
 /** Satu "bacaan" kepatuhan dari satu sumber data (LK atau Aplikasi), dinormalisasi
  * jadi skala "makin tinggi makin lengkap/baik" (0-100) supaya kedua sumber bisa
- * dibandingkan apel-ke-apel walau polaritas kolom aslinya beda-beda. */
+ * dibandingkan apel-ke-apel walau polaritas kolom aslinya beda-beda. `note`
+ * dibawa dari IndicatorCompliance.note (alasan distrust trustLkOkValue kalau
+ * status "unknown") - dipakai readingTier/readingText buat bedakan "belum
+ * diisi" dari sebab unknown lain, lihat isBelumDiisiNote. */
 interface Reading {
   status: "ok" | "violation" | "unknown";
   completionPct: number | null;
+  note?: string;
 }
 
 const READING_SEVERITY: Record<Reading["status"], number> = { ok: 0, unknown: 1, violation: 2 };
@@ -97,7 +144,7 @@ function buildSourceReadings(group: (typeof CHECKPOINT_GROUPS)[number], entry: C
     const polarity = group.indicators.find((gi) => gi.kolom === ind.kolom)?.polarity;
 
     if (ind.sumberData) {
-      merge(ind.sumberData, { status: ind.status, completionPct: completionPct(ind, polarity) });
+      merge(ind.sumberData, { status: ind.status, completionPct: completionPct(ind, polarity), note: ind.note });
     }
 
     if (ind.counterpart) {
@@ -156,6 +203,24 @@ function MarkerRow({ day, variant }: { day: number; variant: "today" | "viewed" 
   );
 }
 
+/** Warna dot lingkaran nomor checkpoint = tier TERBURUK di antara semua
+ * bacaan (readingTier, sudah termasuk aturan "unknown karena belum diisi" =
+ * Merah) - bukan diturunkan dari entry.status. Ini SENGAJA supaya checkpoint
+ * dengan kendalaMismatch (Aplikasi bilang oke, tapi LK melaporkan kendala
+ * nyata - entry.status jadi "unknown" di compliance.ts) tetap tampil Hijau
+ * kalau angkanya memang oke; kontradiksinya dikomunikasikan lewat tag "ada
+ * kendala LK", bukan dot yang jadi abu-abu. Abu-abu cuma dipakai kalau
+ * benar-benar tidak ada satupun bacaan yang bisa digradasi. */
+function checkpointDotClass(statusKey: CheckpointCompliance["status"] | "future", readings: Map<Source, Reading>): string {
+  if (statusKey === "future") return STATUS_DOT.future;
+  let worst: SeverityTier | null = null;
+  for (const r of readings.values()) {
+    const tier = readingTier(r);
+    if (tier && (!worst || TIER_RANK[tier] > TIER_RANK[worst])) worst = tier;
+  }
+  return worst ? TIER_DOT_CLASS[worst] : STATUS_DOT.unknown;
+}
+
 function CheckpointRow({
   group,
   entry,
@@ -167,21 +232,12 @@ function CheckpointRow({
   const violationCount = entry?.indicators.filter((i) => i.gating && i.status === "violation").length ?? 0;
   const kendalaIssue = entry?.kendala?.isIssue;
   const readings = buildSourceReadings(group, entry);
-  if (entry?.kendalaMismatch) {
-    // Semua indikator kuantitatif bisa saja "ok", tapi catatan Kendala LK
-    // melaporkan masalah nyata - entry.status sudah didowngrade jadi "unknown"
-    // di compliance.ts, jangan biarkan bacaan per-sumber tetap bilang "Lengkap".
-    // Angkanya sendiri tetap ditampilkan (cuma warnanya jadi abu-abu/unknown).
-    for (const [source, r] of readings) {
-      if (r.status === "ok") readings.set(source, { status: "unknown", completionPct: r.completionPct });
-    }
-  }
   const sources = SOURCE_ORDER.filter((s) => readings.has(s));
 
   return (
     <div className="relative z-10 flex items-start gap-2.5 py-1" title={group.tujuan}>
       <div className="flex w-5 shrink-0 justify-center pt-0.5">
-        <div className={`flex h-5 w-5 items-center justify-center rounded-full border-2 text-[9px] font-bold ${STATUS_DOT[statusKey]}`}>
+        <div className={`flex h-5 w-5 items-center justify-center rounded-full border-2 text-[9px] font-bold ${checkpointDotClass(statusKey, readings)}`}>
           {group.no}
         </div>
       </div>
@@ -193,9 +249,11 @@ function CheckpointRow({
         {sources.length > 0 ? (
           sources.map((s) => {
             const r = readings.get(s)!;
-            const text = r.status === "ok" ? "Lengkap" : r.completionPct != null ? `${r.completionPct}%` : "-";
+            const text = readingText(r);
+            const tier = readingTier(r);
+            const textClass = tier ? TIER_STYLES[tier].text : "text-ink-muted";
             return (
-              <span key={s} className={`font-medium ${READING_TEXT_SM[r.status]}`}>
+              <span key={s} className={`font-medium ${textClass}`}>
                 {SOURCE_LABEL[s]} {text}
               </span>
             );
@@ -250,10 +308,16 @@ export function MilestoneTimeline({
 
       <div className="mt-2 flex flex-wrap gap-x-2.5 gap-y-1 border-t border-gridline pt-2 text-[9px] text-ink-muted">
         <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-status-good" /> Sesuai
+          <span className="h-2 w-2 rounded-full bg-status-good" /> Hijau ≥90% (Sesuai)
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-status-critical" /> Belum sesuai
+          <span className="h-2 w-2 rounded-full bg-status-warning" /> Kuning 70-90%
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="h-2 w-2 rounded-full bg-status-serious" /> Oranye 30-70%
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="h-2 w-2 rounded-full bg-status-critical" /> Merah &lt;30%
         </span>
         <span className="flex items-center gap-1">
           <span className="h-2 w-2 rounded-full bg-status-unknown" /> Tidak ada data

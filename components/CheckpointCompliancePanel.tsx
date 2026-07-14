@@ -1,21 +1,11 @@
 import type { CheckpointCompliance, IndicatorCompliance } from "@/lib/compliance";
 import type { CheckpointGroup } from "@/lib/knowledge/checkpoints";
-import { indicatorSeverity, TIER_LABEL, TIER_RANK } from "@/lib/severity";
+import { indicatorSeverity, clampToNonHijau, TIER_LABEL, TIER_RANK } from "@/lib/severity";
 import type { SeverityTier } from "@/lib/severity";
 import { TIER_STYLES } from "./SeverityBadge";
 
 const STATUS_LABEL = { sesuai: "Sesuai", "belum-sesuai": "Belum sesuai", unknown: "Tidak ada data" } as const;
 const NEUTRAL_STATUS_STYLE = { dot: "bg-status-unknown", text: "text-ink-muted" };
-
-/** Tier hijau TIDAK PERNAH dipakai untuk sesuatu yang masih "violation"/"Belum
- * Sesuai" - hijau berarti "tidak perlu tindakan", yang kontradiktif kalau
- * dipasang bareng status yang masih gagal capai target. Kuning jadi lantai
- * (tier paling ringan yang boleh tampil) untuk kasus begitu - dekat target
- * tetap ditandai beda dari yang jauh (oranye/merah), tapi tidak pernah
- * disamarkan jadi "sudah oke". */
-function clampToNonHijau(tier: SeverityTier): SeverityTier {
-  return tier === "hijau" ? "kuning" : tier;
-}
 
 /** Nilai indikator persentase (mis. "89.47%") diwarnai per tingkat keparahan
  * 4-tingkat (Hijau/Kuning/Oranye/Merah, lihat lib/severity.ts) - BUKAN

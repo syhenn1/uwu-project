@@ -25,6 +25,18 @@ export function classifySeverity(raw: number, polarity: CheckpointIndicator["pol
   return { tier, aksi: TIER_ACTION[tier] };
 }
 
+/** Tier hijau TIDAK PERNAH dipakai untuk sesuatu yang masih "violation"/"Belum
+ * Sesuai" - hijau berarti "tidak perlu tindakan", yang kontradiktif kalau
+ * dipasang bareng status yang masih gagal capai target. Kuning jadi lantai
+ * (tier paling ringan yang boleh tampil) untuk kasus begitu - dekat target
+ * tetap ditandai beda dari yang jauh (oranye/merah), tapi tidak pernah
+ * disamarkan jadi "sudah oke". Dipakai bareng oleh CheckpointCompliancePanel
+ * & MilestoneTimeline supaya checkpoint yang belum capai target tidak pernah
+ * tampil hijau di kedua tempat itu. */
+export function clampToNonHijau(tier: SeverityTier): SeverityTier {
+  return tier === "hijau" ? "kuning" : tier;
+}
+
 /** Severity satu indikator gating/info, atau null kalau tidak berlaku (kolom
  * enum "Sudah"/"Belum" mis. fasilBelumLoginLK, atau raw bukan angka/tidak ada
  * data untuk dinilai). Dipakai bareng oleh prompt LLM (lib/prompts.ts) dan
