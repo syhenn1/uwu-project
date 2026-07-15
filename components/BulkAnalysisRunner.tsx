@@ -82,6 +82,7 @@ export function BulkAnalysisRunner({ facilitators, days }: { facilitators: Facil
 
   const [entries, setEntries] = useState<Record<string, ResultEntry>>(loadStoredEntries);
   const [concurrency, setConcurrency] = useState(4);
+  const [excludeAplikasi, setExcludeAplikasi] = useState(false);
   const [running, setRunning] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "done" | "error">("idle");
@@ -124,7 +125,7 @@ export function BulkAnalysisRunner({ facilitators, days }: { facilitators: Facil
       const res = await fetch("/api/analyze/facilitator", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kodeFasil: item.kodeFasil, hari: item.hari }),
+        body: JSON.stringify({ kodeFasil: item.kodeFasil, hari: item.hari, excludeAplikasi }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal membuat analisis.");
@@ -262,6 +263,19 @@ export function BulkAnalysisRunner({ facilitators, days }: { facilitators: Facil
                 </option>
               ))}
             </select>
+          </label>
+          <label
+            className="flex items-center gap-1.5 text-xs text-ink-secondary"
+            title='Buang seluruh checkpoint/persentase ber-sumber "Aplikasi Revit" (Login Aplikasi, Biodata, Dokumen Admin/Teknis, RAB) dari data yang dikirim ke AI - analisis jadi fokus ke checkpoint LK Fasil & catatan Kendala saja.'
+          >
+            <input
+              type="checkbox"
+              checked={excludeAplikasi}
+              onChange={(e) => setExcludeAplikasi(e.target.checked)}
+              disabled={running}
+              className="rounded border-border"
+            />
+            Kecualikan data Aplikasi
           </label>
           <button
             onClick={() => startAll(false)}

@@ -108,7 +108,7 @@ export default async function FacilitatorDetailPage({
           {mode === "harian" && (
             <DaySelector days={days} current={hari} basePath={`/fasilitator/${kode}`} todayHari={todayHari} />
           )}
-          <MilestoneTimeline compliance={compliance} todayHari={todayHari} viewedHari={mode === "alltime" ? todayHari : hari} />
+          <MilestoneTimeline compliance={compliance} history={history} todayHari={todayHari} viewedHari={mode === "alltime" ? todayHari : hari} />
           {anomalies.length > 0 && (
             <div>
               <h2 className="mb-2 text-sm font-semibold text-ink-primary">Anomali Terdeteksi</h2>

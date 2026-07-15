@@ -1,7 +1,8 @@
 import { CHECKPOINT_GROUPS } from "@/lib/knowledge/checkpoints";
 import type { CheckpointIndicator } from "@/lib/knowledge/checkpoints";
+import { KENDALA_BY_CHECKPOINT, classifyKendalaText } from "@/lib/compliance";
 import type { CheckpointCompliance, IndicatorCompliance } from "@/lib/compliance";
-import type { CheckpointSourceData } from "@/lib/types";
+import type { CheckpointSourceData, FacilRow } from "@/lib/types";
 import { classifySeverity, TIER_RANK } from "@/lib/severity";
 import type { SeverityTier } from "@/lib/severity";
 import { TIER_STYLES } from "./SeverityBadge";
@@ -71,6 +72,28 @@ function readingText(r: Reading): string {
   if (r.status === "unknown" && isBelumDiisiNote(r.note)) return "0%, belum diisi";
   if (r.status === "ok") return "Lengkap";
   return r.completionPct != null ? `${r.completionPct}%` : "-";
+}
+
+/** Hari paling awal dari rentang hari berturut-turut (berakhir di `uptoDay`)
+ * di mana kolom Kendala terkait checkpoint ini (KENDALA_BY_CHECKPOINT) masih
+ * konsisten "belum diisi" - dipakai buat kasih akhiran "sejak Hari X" pada
+ * bacaan "0%, belum diisi" (lihat readingText), supaya kelihatan sudah berapa
+ * lama gap-nya, bukan seolah baru terjadi hari ini. null kalau checkpoint ini
+ * tidak punya kolom Kendala terpetakan, atau histori-nya tidak tersedia. */
+function belumDiisiSinceDay(history: FacilRow[], checkpointNo: number, uptoDay: number): number | null {
+  const kendalaKey = KENDALA_BY_CHECKPOINT[checkpointNo];
+  if (!kendalaKey) return null;
+  const byHari = new Map(history.map((r) => [r.hari, r]));
+  let since: number | null = null;
+  for (let h = uptoDay; h >= 1; h--) {
+    const row = byHari.get(h);
+    if (!row) break;
+    const raw = row[kendalaKey];
+    const text = typeof raw === "string" ? raw.trim() : "";
+    if (classifyKendalaText(text) !== "belum-diisi") break;
+    since = h;
+  }
+  return since;
 }
 
 type Source = Exclude<CheckpointSourceData, null>;
@@ -224,9 +247,13 @@ function checkpointDotClass(statusKey: CheckpointCompliance["status"] | "future"
 function CheckpointRow({
   group,
   entry,
+  history,
+  viewedHari,
 }: {
   group: (typeof CHECKPOINT_GROUPS)[number];
   entry: CheckpointCompliance | undefined;
+  history: FacilRow[];
+  viewedHari: number;
 }) {
   const statusKey: CheckpointCompliance["status"] | "future" = entry ? entry.status : "future";
   const violationCount = entry?.indicators.filter((i) => i.gating && i.status === "violation").length ?? 0;
@@ -252,9 +279,11 @@ function CheckpointRow({
             const text = readingText(r);
             const tier = readingTier(r);
             const textClass = tier ? TIER_STYLES[tier].text : "text-ink-muted";
+            const since = r.status === "unknown" && isBelumDiisiNote(r.note) ? belumDiisiSinceDay(history, group.no, viewedHari) : null;
             return (
               <span key={s} className={`font-medium ${textClass}`}>
                 {SOURCE_LABEL[s]} {text}
+                {since != null && since < viewedHari && ` (sejak Hari ${since})`}
               </span>
             );
           })
@@ -277,10 +306,12 @@ function CheckpointRow({
 
 export function MilestoneTimeline({
   compliance,
+  history,
   todayHari,
   viewedHari,
 }: {
   compliance: CheckpointCompliance[];
+  history: FacilRow[];
   todayHari: number;
   viewedHari: number;
 }) {
@@ -300,7 +331,13 @@ export function MilestoneTimeline({
             row.kind === "marker" ? (
               <MarkerRow key={`marker-${row.variant}`} day={row.day} variant={row.variant} />
             ) : (
-              <CheckpointRow key={row.group.no} group={row.group} entry={compliance.find((c) => c.group.no === row.group.no)} />
+              <CheckpointRow
+                key={row.group.no}
+                group={row.group}
+                entry={compliance.find((c) => c.group.no === row.group.no)}
+                history={history}
+                viewedHari={viewedHari}
+              />
             )
           )}
         </div>

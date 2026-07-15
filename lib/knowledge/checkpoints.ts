@@ -235,12 +235,18 @@ export function findIndicator(kolom: keyof FacilRow): { group: CheckpointGroup; 
 }
 
 /** Ringkasan knowledge base dalam bentuk teks, dibatasi hanya checkpoint yang
- * sudah relevan pada hari tsb - dipakai sebagai konteks system prompt LLM. */
-export function buildKnowledgeSummary(uptoDay: number): string {
+ * sudah relevan pada hari tsb - dipakai sebagai konteks system prompt LLM.
+ * `excludeAplikasi` = true membuang seluruh indikator ber-sumber "Aplikasi
+ * Revit" (dan checkpoint yang jadi kosong total setelahnya) - dipakai saat
+ * admin cuma mau analisis berbasis catatan Kendala/LK Fasil, tanpa persentase
+ * dari Aplikasi (mis. Dokumen Admin/Teknis) ikut jadi bahan kesimpulan. */
+export function buildKnowledgeSummary(uptoDay: number, excludeAplikasi = false): string {
   const lines: string[] = [];
   for (const group of activeCheckpoints(uptoDay)) {
+    const indicators = excludeAplikasi ? group.indicators.filter((i) => i.sumberData !== "Aplikasi Revit") : group.indicators;
+    if (indicators.length === 0) continue;
     lines.push(`- [${group.name}] (aktif sejak Hari ${group.activeFromDay}, bobot risiko total ${group.bobotTotal}) - Tujuan: ${group.tujuan}`);
-    for (const ind of group.indicators) {
+    for (const ind of indicators) {
       const bobotNote = ind.bobot > 0 ? ` (bobot ${ind.bobot})` : "";
       lines.push(`    - ${ind.kolom}${bobotNote}: ${ind.definisi} [sumber: ${ind.sumberData ?? "-"}]`);
     }

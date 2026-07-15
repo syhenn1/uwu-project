@@ -2,11 +2,22 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { FacilRow } from "@/lib/types";
 import { riskLevel, getEffectiveRisk, deriveKampus } from "@/lib/metrics";
 import { RiskBadge } from "./RiskBadge";
 
-type SortKey = "nama" | "risiko" | "belumLoginApp" | "belumDihubungi";
+type SortKey = "nama" | "koordinator" | "risiko" | "belumLoginApp" | "belumDihubungi" | "loginLK" | "checkpoint";
+
+const SORT_OPTIONS: Array<{ key: SortKey; label: string }> = [
+  { key: "risiko", label: "Nilai Risiko" },
+  { key: "nama", label: "Nama Fasilitator (A-Z)" },
+  { key: "koordinator", label: "Koordinator (A-Z)" },
+  { key: "checkpoint", label: "Checkpoint Belum Sesuai" },
+  { key: "loginLK", label: "Status Login LK" },
+  { key: "belumLoginApp", label: "% Belum Login App" },
+  { key: "belumDihubungi", label: "% Belum Dihubungi" },
+];
 
 function numOrNeg(v: FacilRow[keyof FacilRow]): number {
   return typeof v === "number" ? v : -1;
@@ -21,6 +32,7 @@ export function FacilitatorTable({
   hari: number;
   complianceCounts?: Map<string, number>;
 }) {
+  const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey>("risiko");
   const [asc, setAsc] = useState(false);
   const [kampus, setKampus] = useState<string>("semua");
@@ -48,13 +60,16 @@ export function FacilitatorTable({
     copy.sort((a, b) => {
       let diff = 0;
       if (sortKey === "nama") diff = a.namaFasil.localeCompare(b.namaFasil);
+      if (sortKey === "koordinator") diff = a.namaKoor.localeCompare(b.namaKoor);
       if (sortKey === "risiko") diff = (getEffectiveRisk(a).value ?? -1) - (getEffectiveRisk(b).value ?? -1);
       if (sortKey === "belumLoginApp") diff = numOrNeg(a.pctSekolahBelumLoginAplikasi) - numOrNeg(b.pctSekolahBelumLoginAplikasi);
       if (sortKey === "belumDihubungi") diff = numOrNeg(a.pctSekolahBelumDihubungi) - numOrNeg(b.pctSekolahBelumDihubungi);
+      if (sortKey === "loginLK") diff = (a.fasilBelumLoginLK === "Belum" ? 1 : 0) - (b.fasilBelumLoginLK === "Belum" ? 1 : 0);
+      if (sortKey === "checkpoint") diff = (complianceCounts?.get(a.kodeFasil) ?? 0) - (complianceCounts?.get(b.kodeFasil) ?? 0);
       return asc ? diff : -diff;
     });
     return copy;
-  }, [filtered, sortKey, asc]);
+  }, [filtered, sortKey, asc, complianceCounts]);
 
   function toggleSort(key: SortKey) {
     if (key === sortKey) setAsc(!asc);
@@ -107,6 +122,27 @@ export function FacilitatorTable({
             ))}
           </select>
         </label>
+        <label className="flex items-center gap-1.5 text-ink-secondary">
+          Urutkan:
+          <select
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as SortKey)}
+            className="rounded border border-border bg-surface px-2 py-1 text-ink-primary"
+          >
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => setAsc(!asc)}
+            title={asc ? "Menaik (klik untuk menurun)" : "Menurun (klik untuk menaik)"}
+            className="rounded border border-border bg-surface px-2 py-1 text-ink-primary hover:bg-background"
+          >
+            {asc ? "▲" : "▼"}
+          </button>
+        </label>
         {(kampus !== "semua" || koordinator !== "semua") && (
           <button
             onClick={() => {
@@ -138,9 +174,17 @@ export function FacilitatorTable({
           </thead>
           <tbody>
             {sorted.map((r) => (
-              <tr key={r.kodeFasil} className="border-b border-gridline last:border-0 hover:bg-background">
+              <tr
+                key={r.kodeFasil}
+                onClick={() => router.push(`/fasilitator/${r.kodeFasil}?hari=${hari}`)}
+                className="cursor-pointer border-b border-gridline last:border-0 hover:bg-background"
+              >
                 <td className="px-3 py-2">
-                  <Link href={`/fasilitator/${r.kodeFasil}?hari=${hari}`} className="font-medium text-series-1 hover:underline">
+                  <Link
+                    href={`/fasilitator/${r.kodeFasil}?hari=${hari}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="font-medium text-series-1 hover:underline"
+                  >
                     {r.namaFasil}
                   </Link>
                   <div className="text-xs text-ink-muted">{r.kodeFasil}</div>

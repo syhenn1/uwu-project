@@ -55,6 +55,22 @@ export async function getFacilRows(): Promise<FacilRow[]> {
     header: true,
     skipEmptyLines: true,
   });
+  // Kalau ada dua kolom di sheet sumber berbagi header text yang sama persis
+  // (mis. kolom "Nama Fasil" ke-ganti tidak sengaja jadi "Kode Fasil" lagi),
+  // Papaparse diam-diam mengganti nama header duplikatnya ("Kode Fasil_1")
+  // alih-alih error - akibatnya kolom yang dicari toFacilRow() lewat COLUMN_MAP
+  // jadi undefined dan field terkait kosong TANPA pesan error apapun (mis.
+  // Nama Fasil kosong di semua baris, tertukar kesan seolah data lain yang
+  // tampil). SENGAJA cuma di-log (bukan throw) - kolom lain yang datanya sehat
+  // (checkpoint, risiko, dll) harus tetap bisa dipakai walau satu header di
+  // sheet sumber lagi salah ketik, bukan seluruh dashboard ikut down.
+  const missingHeaders = COLUMN_MAP.filter((c) => !parsed.meta.fields?.includes(c.header));
+  if (missingHeaders.length > 0) {
+    console.error(
+      `[sheet] Header kolom berikut tidak ditemukan persis di CSV, kolom terkait akan kosong: ${missingHeaders.map((c) => `"${c.header}"`).join(", ")}. ` +
+        `Kemungkinan header itu ke-typo/ke-timpa di spreadsheet sumber, atau ada dua kolom dengan judul sama persis (Papaparse otomatis mengganti nama duplikatnya jadi "..._1"). Cek baris header tab "Level Fasil".`
+    );
+  }
   return parsed.data
     .filter((r) => (r["Kode Fasil"] ?? "").trim() !== "")
     .map(toFacilRow);

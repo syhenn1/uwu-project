@@ -122,14 +122,46 @@ async function callGroq(messages: ChatMessage[], opts?: CallOpts): Promise<Provi
   return { content, usageIn: data?.usage?.prompt_tokens, usageOut: data?.usage?.completion_tokens };
 }
 
+// --- OpenAI (GPT models - api.openai.com, berbayar) ---
+
+async function callOpenAI(messages: ChatMessage[], opts?: CallOpts): Promise<ProviderResult> {
+  const apiKey = process.env.OPENAI_API_KEY!;
+  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: opts?.temperature ?? 0.3,
+      max_tokens: opts?.maxTokens ?? 500,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`OpenAI error ${res.status}: ${text.slice(0, 300)}`);
+  }
+
+  const data = await res.json();
+  const content = data?.choices?.[0]?.message?.content;
+  if (typeof content !== "string") throw new Error("Respons OpenAI tidak sesuai format yang diharapkan.");
+
+  return { content, usageIn: data?.usage?.prompt_tokens, usageOut: data?.usage?.completion_tokens };
+}
+
 /** Urutan fallback: coba provider pertama yang env var-nya diisi; kalau gagal
  * (kuota habis, rate limit, error apapun), lanjut ke provider berikutnya yang
- * dikonfigurasi. Ketiganya punya tingkatan gratis - HF Inference Providers,
- * Google AI Studio (Gemini), dan Groq. */
+ * dikonfigurasi. Tiga yang pertama punya tingkatan gratis - HF Inference
+ * Providers, Google AI Studio (Gemini), dan Groq. OpenAI ditaruh PALING AKHIR
+ * karena berbayar (tidak ada tingkatan gratis) - dipakai sebagai cadangan
+ * terakhir kalau ketiga provider gratis di atas semuanya gagal/habis kuota. */
 const PROVIDERS: Provider[] = [
   { name: "Hugging Face", envVar: "HF_TOKEN", configured: () => !!process.env.HF_TOKEN, call: callHuggingFace },
   { name: "Google Gemini", envVar: "GEMINI_API_KEY", configured: () => !!process.env.GEMINI_API_KEY, call: callGemini },
   { name: "Groq", envVar: "GROQ_API_KEY", configured: () => !!process.env.GROQ_API_KEY, call: callGroq },
+  { name: "OpenAI", envVar: "OPENAI_API_KEY", configured: () => !!process.env.OPENAI_API_KEY, call: callOpenAI },
 ];
 
 export function isAnyProviderConfigured(): boolean {
@@ -148,7 +180,7 @@ export async function callLLM(messages: ChatMessage[], opts?: CallOpts): Promise
   const candidates = PROVIDERS.filter((p) => p.configured());
   if (candidates.length === 0) {
     const err =
-      "Belum ada provider AI dikonfigurasi. Isi salah satu di .env.local: HF_TOKEN, GEMINI_API_KEY, atau GROQ_API_KEY.";
+      "Belum ada provider AI dikonfigurasi. Isi salah satu di .env.local: HF_TOKEN, GEMINI_API_KEY, GROQ_API_KEY, atau OPENAI_API_KEY.";
     log(err);
     throw new Error(err);
   }
@@ -169,7 +201,14 @@ export async function callLLM(messages: ChatMessage[], opts?: CallOpts): Promise
       return result.content;
     } catch (err) {
       const durationMs = Date.now() - startedAt;
-      const msg = err instanceof Error ? err.message : String(err);
+      // "fetch failed" sendiri tidak bilang APA yang gagal (DNS? timeout?
+      // koneksi ditolak?) - penyebab sebenarnya ada di `cause` (mis. "getaddrinfo
+      // ENOTFOUND ...", "ECONNREFUSED", "ETIMEDOUT") tapi tidak otomatis masuk
+      // ke `message`. Sertakan eksplisit supaya log/pesan error berikutnya
+      // langsung actionable, bukan cuma "fetch failed" yang generik.
+      const baseMsg = err instanceof Error ? err.message : String(err);
+      const cause = err instanceof Error && err.cause ? ` (cause: ${String(err.cause)})` : "";
+      const msg = `${baseMsg}${cause}`;
       log(`<- "${provider.name}" gagal setelah ${durationMs}ms:`, msg);
       failures.push(`${provider.name}: ${msg}`);
     }

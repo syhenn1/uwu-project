@@ -264,12 +264,14 @@ export function FacilitatorAnalysisWorkbench({
   const [genError, setGenError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [excludeAplikasi, setExcludeAplikasi] = useState(false);
 
   async function generate() {
     setGenerating(true);
     setGenError(null);
     try {
-      const payload = mode === "alltime" ? { kodeFasil: row.kodeFasil } : { kodeFasil: row.kodeFasil, hari };
+      const basePayload = mode === "alltime" ? { kodeFasil: row.kodeFasil } : { kodeFasil: row.kodeFasil, hari };
+      const payload = { ...basePayload, excludeAplikasi };
       const res = await fetch("/api/analyze/facilitator", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -379,6 +381,15 @@ export function FacilitatorAnalysisWorkbench({
               {generating ? "Menganalisis..." : hasil ? "Generate Ulang dengan AI" : "Generate dengan AI"}
             </button>
           </div>
+          <label className="flex items-center gap-1.5 text-xs text-ink-secondary" title='Buang seluruh checkpoint/persentase ber-sumber "Aplikasi Revit" (Login Aplikasi, Biodata, Dokumen Admin/Teknis, RAB) dari data yang dikirim ke AI - analisis jadi fokus ke checkpoint LK Fasil & catatan Kendala saja.'>
+            <input
+              type="checkbox"
+              checked={excludeAplikasi}
+              onChange={(e) => setExcludeAplikasi(e.target.checked)}
+              className="rounded border-border"
+            />
+            Kecualikan data Aplikasi (fokus ke Kendala &amp; LK Fasil saja)
+          </label>
           <textarea
             id="hasil-analisis"
             value={hasil}

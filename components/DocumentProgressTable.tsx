@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { FacilRow } from "@/lib/types";
 import { deriveKampus } from "@/lib/metrics";
 import { DOCUMENT_STAGE_METRICS, metricFor, type DocStage } from "@/lib/documentProgress";
@@ -16,6 +17,7 @@ function numOrNeg(v: FacilRow[keyof FacilRow]): number {
 }
 
 export function DocumentProgressTable({ rows, hari }: { rows: FacilRow[]; hari: number }) {
+  const router = useRouter();
   const adminSesuaiKolom = metricFor("Admin", "Sesuai").kolom;
   const [sortKey, setSortKey] = useState<SortKey>(adminSesuaiKolom);
   const [asc, setAsc] = useState(true);
@@ -130,9 +132,17 @@ export function DocumentProgressTable({ rows, hari }: { rows: FacilRow[]; hari: 
           </thead>
           <tbody>
             {sorted.map((r) => (
-              <tr key={r.kodeFasil} className="border-b border-gridline last:border-0 hover:bg-background">
+              <tr
+                key={r.kodeFasil}
+                onClick={() => router.push(`/fasilitator/${r.kodeFasil}?hari=${hari}`)}
+                className="cursor-pointer border-b border-gridline last:border-0 hover:bg-background"
+              >
                 <td className="px-3 py-2">
-                  <Link href={`/fasilitator/${r.kodeFasil}?hari=${hari}`} className="font-medium text-series-1 hover:underline">
+                  <Link
+                    href={`/fasilitator/${r.kodeFasil}?hari=${hari}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="font-medium text-series-1 hover:underline"
+                  >
                     {r.namaFasil}
                   </Link>
                   <div className="text-xs text-ink-muted">

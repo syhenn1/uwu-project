@@ -85,9 +85,11 @@ function attachCounterpart(base: IndicatorCompliance, row: FacilRow): IndicatorC
  * artefak sheet (tidak ada data = default 0%, bukan #DIV/0!). Dipetakan per
  * nomor checkpoint, bukan per kolom individual, karena satu kendala kadang
  * menaungi beberapa indikator (mis. checkpoint 3 & 4 sama-sama pakai kendala
- * Panlak/Format).
+ * Panlak/Format). Diekspor supaya UI (mis. MilestoneTimeline) bisa telusuri
+ * histori kolom Kendala yang sama untuk cari "sejak Hari berapa" tanpa
+ * menduplikasi pemetaan ini.
  */
-const KENDALA_BY_CHECKPOINT: Partial<Record<number, keyof FacilRow>> = {
+export const KENDALA_BY_CHECKPOINT: Partial<Record<number, keyof FacilRow>> = {
   1: "kendalaKomunikasi",
   3: "kendalaPanlakFormatTemplate",
   4: "kendalaPanlakFormatTemplate",

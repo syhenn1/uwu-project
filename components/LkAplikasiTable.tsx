@@ -1,7 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { LkAplikasiRow } from "@/lib/anomalies";
 
 export function LkAplikasiTable({ rows }: { rows: LkAplikasiRow[] }) {
+  const router = useRouter();
   const inconsistent = rows.filter((r) => !r.konsisten);
   const total = rows.length;
 
@@ -28,9 +32,17 @@ export function LkAplikasiTable({ rows }: { rows: LkAplikasiRow[] }) {
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={i} className="border-b border-gridline last:border-0 hover:bg-background">
+              <tr
+                key={i}
+                onClick={() => router.push(`/fasilitator/${r.kodeFasil}`)}
+                className="cursor-pointer border-b border-gridline last:border-0 hover:bg-background"
+              >
                 <td className="px-3 py-2">
-                  <Link href={`/fasilitator/${r.kodeFasil}`} className="font-medium text-series-1 hover:underline">
+                  <Link
+                    href={`/fasilitator/${r.kodeFasil}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="font-medium text-series-1 hover:underline"
+                  >
                     {r.namaFasil}
                   </Link>
                 </td>
