@@ -315,104 +315,109 @@ export function FacilitatorAnalysisWorkbench({
   }
 
   return (
-    <div className="flex flex-col rounded-lg border border-border bg-surface lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]">
-      {/* Header + navigasi: di luar area scroll internal di bawah, supaya
-          "Selanjutnya" selalu bisa diklik tanpa scroll dulu, walau daftar
-          Kendala di bawahnya panjang. */}
-      <div className="flex shrink-0 flex-col gap-2 border-b border-gridline p-4">
-        <h3 className="text-sm font-semibold text-ink-primary">Catatan Kendala &amp; Analisis (Hari ke-{hari})</h3>
-        <div className="flex items-center justify-between gap-2 text-xs">
-          {prevFacilitator ? (
-            <Link href={facilHref(prevFacilitator.kodeFasil, hari, mode)} className="text-series-1 hover:underline">
-              ← {prevFacilitator.namaFasil}
-            </Link>
-          ) : (
-            <span className="text-ink-muted">← (awal daftar)</span>
-          )}
-          {nextFacilitator ? (
-            <Link
-              href={facilHref(nextFacilitator.kodeFasil, hari, mode)}
-              className="rounded-md bg-series-1 px-2.5 py-1 font-medium text-white transition-opacity hover:opacity-90"
-            >
-              Selanjutnya: {nextFacilitator.namaFasil} →
-            </Link>
-          ) : (
-            <span className="text-ink-muted">(akhir daftar) →</span>
-          )}
+    <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto pb-4 pr-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+      {/* Bagian Navigasi */}
+      <div className="flex shrink-0 items-center justify-between gap-2 px-1 text-xs">
+        {prevFacilitator ? (
+          <Link href={facilHref(prevFacilitator.kodeFasil, hari, mode)} className="text-series-1 transition-opacity hover:opacity-80">
+            &larr; {prevFacilitator.namaFasil}
+          </Link>
+        ) : (
+          <span className="text-ink-muted">&larr; (awal daftar)</span>
+        )}
+        {nextFacilitator ? (
+          <Link
+            href={facilHref(nextFacilitator.kodeFasil, hari, mode)}
+            className="flex items-center gap-1.5 rounded-md bg-series-1 px-3 py-1.5 font-medium text-white transition-all hover:bg-series-1/90 shadow-sm"
+          >
+            Selanjutnya: {nextFacilitator.namaFasil} &rarr;
+          </Link>
+        ) : (
+          <span className="text-ink-muted">(akhir daftar) &rarr;</span>
+        )}
+      </div>
+
+      {/* Bagian Hasil Analisis (Atas) */}
+      <div className="flex shrink-0 flex-col gap-3 rounded-xl border border-border bg-surface p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-4 border-b border-gridline pb-3">
+          <label htmlFor="hasil-analisis" className="text-sm font-semibold text-ink-primary">
+            Hasil Analisis AI
+          </label>
+          <button
+            onClick={generate}
+            disabled={generating}
+            className="rounded-md bg-series-1 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-all hover:bg-series-1/90 disabled:opacity-50"
+          >
+            {generating ? "Menganalisis..." : hasil ? "Generate Ulang" : "Generate dengan AI"}
+          </button>
+        </div>
+
+        <label className="flex items-center gap-2 text-xs text-ink-secondary" title='Buang seluruh checkpoint/persentase ber-sumber "Aplikasi Revit" (Login Aplikasi, Biodata, Dokumen Admin/Teknis, RAB) dari data yang dikirim ke AI - analisis jadi fokus ke checkpoint LK Fasil & catatan Kendala saja.'>
+          <input
+            type="checkbox"
+            checked={excludeAplikasi}
+            onChange={(e) => setExcludeAplikasi(e.target.checked)}
+            className="rounded border-border accent-series-1"
+          />
+          Kecualikan data Aplikasi (fokus ke Kendala &amp; LK Fasil saja)
+        </label>
+
+        <textarea
+          id="hasil-analisis"
+          value={hasil}
+          onChange={(e) => {
+            setHasil(e.target.value);
+            setSaveState("idle");
+          }}
+          placeholder='Tulis manual, atau klik "Generate dengan AI" di atas lalu edit hasilnya di sini...'
+          rows={7}
+          className="resize-y rounded-md border border-border bg-background p-3 text-sm text-ink-primary placeholder:italic placeholder:text-ink-muted focus:border-series-1 focus:outline-none focus:ring-1 focus:ring-series-1"
+        />
+        {genError && <p className="text-xs text-status-critical">{genError}</p>}
+
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <button
+            onClick={saveToSheet}
+            disabled={saveState === "saving" || !hasil.trim()}
+            className="rounded-md bg-series-2 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-series-2/90 disabled:opacity-50"
+          >
+            {saveState === "saving" ? "Menyimpan..." : "Simpan ke Spreadsheet"}
+          </button>
+          {saveState === "done" && <span className="text-xs font-medium text-status-good">✓ Tersimpan (Kolom Analisis Hari {hari})</span>}
+          {saveState === "error" && <span className="text-xs text-status-critical">{saveError}</span>}
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 overflow-y-auto p-4">
-        <div className="flex flex-col gap-3">
-          {KENDALA_FIELDS.map((f) => {
-            const d = kendalaDisplayBase(row, history, f.key, hari);
-            return (
-              <label key={String(f.key)} className="flex flex-col gap-1 text-xs text-ink-secondary">
-                {KEY_TO_HEADER[f.key] ?? f.label}
-                {f.key === "kendalaKomunikasi" && <ContactStatusNote compliance={compliance} />}
-                {d.statusNote && (
-                  <div className={`inline-flex w-fit items-center gap-1.5 rounded px-2 py-1 text-[11px] font-medium ${TIER_STYLES.kuning.bg} ${TIER_STYLES.kuning.text}`}>
-                    {d.statusNote}
-                  </div>
-                )}
-                <textarea
-                  readOnly
-                  value={d.text}
-                  rows={2}
-                  className={`resize-y rounded border px-2 py-1.5 text-sm ${KENDALA_STATE_CONTAINER[d.state]} ${
-                    d.isPlaceholder ? "italic text-ink-muted" : "text-ink-primary"
-                  }`}
-                />
-              </label>
-            );
-          })}
+      {/* Bagian Catatan Kendala */}
+      <div className="flex flex-col rounded-xl border border-border bg-surface shadow-sm">
+        <div className="flex shrink-0 flex-col gap-2 border-b border-gridline p-5">
+          <h3 className="text-sm font-semibold text-ink-primary">Catatan Kendala Fasil (Hari ke-{hari})</h3>
         </div>
 
-        <div className="flex flex-col gap-1.5 border-t border-gridline pt-3">
-          <div className="flex items-center justify-between gap-2">
-            <label htmlFor="hasil-analisis" className="text-xs font-medium text-ink-secondary">
-              Hasil Analisis
-            </label>
-            <button
-              onClick={generate}
-              disabled={generating}
-              className="rounded-md bg-series-1 px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-            >
-              {generating ? "Menganalisis..." : hasil ? "Generate Ulang dengan AI" : "Generate dengan AI"}
-            </button>
-          </div>
-          <label className="flex items-center gap-1.5 text-xs text-ink-secondary" title='Buang seluruh checkpoint/persentase ber-sumber "Aplikasi Revit" (Login Aplikasi, Biodata, Dokumen Admin/Teknis, RAB) dari data yang dikirim ke AI - analisis jadi fokus ke checkpoint LK Fasil & catatan Kendala saja.'>
-            <input
-              type="checkbox"
-              checked={excludeAplikasi}
-              onChange={(e) => setExcludeAplikasi(e.target.checked)}
-              className="rounded border-border"
-            />
-            Kecualikan data Aplikasi (fokus ke Kendala &amp; LK Fasil saja)
-          </label>
-          <textarea
-            id="hasil-analisis"
-            value={hasil}
-            onChange={(e) => {
-              setHasil(e.target.value);
-              setSaveState("idle");
-            }}
-            placeholder='Tulis manual, atau klik "Generate dengan AI" di atas lalu edit hasilnya di sini...'
-            rows={8}
-            className="resize-y rounded border border-border bg-background px-2 py-1.5 text-sm text-ink-primary placeholder:text-ink-muted placeholder:italic"
-          />
-          {genError && <p className="text-xs text-status-critical">{genError}</p>}
-
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <button
-              onClick={saveToSheet}
-              disabled={saveState === "saving" || !hasil.trim()}
-              className="rounded-md bg-series-2 px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-            >
-              {saveState === "saving" ? "Menyimpan..." : "Tambahkan ke Spreadsheet"}
-            </button>
-            {saveState === "done" && <span className="text-xs text-status-good">Tersimpan ke spreadsheet (kolom Analisis, Hari {hari}).</span>}
-            {saveState === "error" && <span className="text-xs text-status-critical">{saveError}</span>}
+        <div className="flex flex-col gap-4 overflow-y-auto p-5">
+          <div className="flex flex-col gap-4">
+            {KENDALA_FIELDS.map((f) => {
+              const d = kendalaDisplayBase(row, history, f.key, hari);
+              return (
+                <label key={String(f.key)} className="flex flex-col gap-1.5 text-xs text-ink-secondary">
+                  <span className="font-medium text-ink-primary">{KEY_TO_HEADER[f.key] ?? f.label}</span>
+                  {f.key === "kendalaKomunikasi" && <ContactStatusNote compliance={compliance} />}
+                  {d.statusNote && (
+                    <div className={`inline-flex w-fit items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold ${TIER_STYLES.kuning.bg} ${TIER_STYLES.kuning.text}`}>
+                      {d.statusNote}
+                    </div>
+                  )}
+                  <textarea
+                    readOnly
+                    value={d.text}
+                    rows={2}
+                    className={`resize-y rounded-md border px-3 py-2 text-sm leading-relaxed ${KENDALA_STATE_CONTAINER[d.state]} ${
+                      d.isPlaceholder ? "italic text-ink-muted" : "text-ink-primary"
+                    } focus:outline-none`}
+                  />
+                </label>
+              );
+            })}
           </div>
         </div>
       </div>

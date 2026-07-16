@@ -330,26 +330,29 @@ Tolong buatkan analisis naratif yang persis meniru gaya penulisan contoh berikut
 ATURAN KETAT (WAJIB DIIKUTI):
 1. **DILARANG BERTELE-TELE**: Jangan gunakan frasa basa-basi/analisis kosong seperti "Hal ini menunjukkan bahwa...", "Ini menjadi akar masalah yang signifikan...", "Sementara itu...", atau "Ini menunjukkan komitmen...". Langsung tembak ke angka dan fakta.
 2. **DILARANG MENGULANG FAKTA KEBALIKAN**: Jangan menambahkan kalimat sisa yang tidak perlu (misal: "Sudah sesuai 5%. Sementara yang belum 95%." -> cukup sebut yang 5%).
-3. **UBAH RATA-RATA & MINIMUM % JADI ANGKA**: Koordinator tidak ingin menghitung persentase rata-rata dokumen. Hitung secara estimasi:
-   - Total Dokumen Teknis per sekolah = 6 dokumen.
-   - Total Dokumen Admin per sekolah = 11 dokumen.
-   - *Contoh perhitungan*: Jika "Rata-rata % Dok. Teknis" adalah 50%, kalikan 6 -> tulis "rata-rata 3 dokumen per sekolah (50%)". Jika "Min %" adalah 0%, tulis "progress minimum 0 dokumen (0%)".
-4. **KONTEKS TERVERIFIKASI**: Persentase dokumen terverifikasi (baik teknis/admin) dihitung DARI dokumen yang sudah terunggah, bukan dari total keseluruhan. (Misal jika terverifikasi 80% dan terunggah 15%, artinya "80% dari dokumen yang terunggah sudah terverifikasi"). Jangan salah logika.
-5. **NARASI SEBAB-AKIBAT (ROOT CAUSE)**: Hubungkan kalimat dengan logika sebab-akibat lugas agar akar masalahnya terlihat jelas, terutama jika ada Catatan Kualitatif.
+3. **UBAH PERSENTASE JADI ANGKA ABSOLUT (KECUALI DAPODIK)**: Koordinator tidak ingin membaca terlalu banyak persentase. Hitung angka absolutnya (boleh dibulatkan) menggunakan patokan ini:
+   - **Total Sekolah = 20 sekolah** (misal: 15% sekolah -> "3 sekolah (15%)")
+   - **Total Dokumen Teknis per sekolah = 6 dokumen** (misal: rata-rata 50% -> "rata-rata 3 dokumen (50%)")
+   - **Total Dokumen Admin per sekolah = 11 dokumen**
+4. **AWAS HALUSINASI ANGKA**: DILARANG KERAS menyalin angka-angka (seperti 5%, 15%, 3 sekolah, dll) dari teks "Contoh Referensi Analisis Manusia" ke dalam jawabanmu. Angka di contoh itu HANYA DUMMY untuk mencontohkan format narasi. Kamu WAJIB MENGAMBIL angka asli dari "Tabel Persentase Terkini" di atas.
+5. **KONTEKS TERVERIFIKASI**: Persentase dokumen terverifikasi (baik teknis/admin) dihitung DARI dokumen yang sudah terunggah, bukan dari total keseluruhan. Jangan salah logika.
+6. **NARASI SEBAB-AKIBAT (ROOT CAUSE)**: Hubungkan kalimat dengan logika sebab-akibat lugas agar akar masalahnya terlihat jelas, terutama jika ada Catatan Kualitatif.
    - *Contoh 1 (Logika antar indikator)*: "19 sekolah sudah mengunggah 100% dokumen teknisnya. Namun, belum ada satupun dokumen yang diverifikasi fasilitator, yang menyebabkan tidak ada dokumen terverifikasi sesuai."
    - *Contoh 2 (Kualitatif -> Kuantitatif)*: "Terdapat satu sekolah yang mengundurkan diri (berdasarkan catatan), menyebabkan dokumen maksimal hanya menyentuh progress 95%."
+7. **PENYEDERHANAAN JIKA SUDAH 100%**: Jika suatu indikator (misalnya Dokumen Admin atau Dokumen Teknis) sudah Sesuai 100% untuk semua sekolah, TIDAK PERLU lagi menjabarkan angka rata-rata, minimum, terverifikasi, atau terunggah secara panjang lebar. Cukup tuliskan 1 kalimat penyimpulan ringkas.
+   - *Contoh yang benar*: "Dokumen admin sesuai sudah mencapai 100%. Artinya, dokumen admin terunggah dan terverifikasi juga sudah 100%."
 
 Struktur Paragraf yang Wajib Diikuti:
 1. **Pembuka**: Sebutkan apakah hari ini ada checkpoint baru atau masih melanjutkan checkpoint sebelumnya, lalu sebutkan apakah sudah tercapai atau belum.
-2. **Dokumen Teknis**: Sebutkan % sekolah yang sudah sesuai 100%. Lalu % sekolah terverifikasi lengkap (dan rata-ratanya). Lalu % sekolah terunggah lengkap (dan rata-rata & minimumnya dalam bentuk estimasi X dokumen). 
-3. **Dokumen Admin**: Sebutkan % sekolah sesuai lengkap. % terverifikasi. % terunggah lengkap (termasuk rata-rata & minimum estimasi X dokumen).
-4. **Perencana**: Status persentase sekolah memiliki perencana.
-5. **Dapodik**: Persentase update bukti dapodik.
-6. **Biodata**: Persentase atau jumlah sekolah yang biodatanya terverifikasi.
+2. **Dokumen Teknis**: Sebutkan estimasi jumlah sekolah yang sudah sesuai 100%. Lalu sekolah terverifikasi lengkap (dan rata-ratanya dalam X dokumen). Lalu sekolah terunggah lengkap (dan rata-rata & minimumnya dalam X dokumen). JIKA SUDAH 100%, gunakan kalimat penyederhanaan (aturan ke-7).
+3. **Dokumen Admin**: Sebutkan estimasi jumlah sekolah sesuai lengkap. Terverifikasi. Terunggah lengkap (termasuk rata-rata & minimum dalam X dokumen). JIKA SUDAH 100%, gunakan kalimat penyederhanaan (aturan ke-7).
+4. **Perencana**: Status persentase/jumlah sekolah memiliki perencana.
+5. **Dapodik**: Sebutkan HANYA PERSENTASE update bukti dapodik. DILARANG KERAS MENGUBAHNYA MENJADI JUMLAH SEKOLAH MUTLAK (seperti "8 sekolah" atau "sisa 12 sekolah"). 100% di Dapodik berarti "100% dari berapapun sekolah yang butuh update" (bisa 11/11, 2/2, dll). Jika datanya 40%, cukup tulis "Sekolah update bukti dapodik baru mencapai 40%". Jika 100%, tulis "Sekolah update bukti dapodik sudah 100%, berarti semua yang butuh update sudah melakukannya."
+6. **Biodata**: Persentase/jumlah sekolah yang biodatanya terverifikasi.
 7. **Aplikasi**: Jika ada yang belum login, sebutkan singkat.
-8. **Kesimpulan**: Awali dengan "Kesimpulannya, ...", sebutkan alasan utama mengapa checkpoint belum tercapai dalam 1 kalimat lugas (tanpa kata sambung berlebihan).
+8. **Kesimpulan**: Awali dengan "Kesimpulannya, ...", sebutkan alasan utama mengapa checkpoint belum tercapai dalam 1 kalimat lugas.
 
-Contoh Referensi Analisis Manusia (Tiru keringkasannya, JANGAN tambahkan kalimat "Ini menunjukkan..."):
+Contoh Referensi Analisis Manusia (Tiru KERINGKASANNYA dan POLA KALIMATNYA, tapi JANGAN TIRU ANGKA-ANGKANYA):
 [Contoh 1]
 "Checkpoint hari 11 belum ada, jadi masih melanjutkan checkpoint sebelumnya yaitu dokumen teknis sesuai 100% untuk 100% sekolah. Checkpoint sebelumnya belum tercapai.
 
@@ -363,7 +366,7 @@ Sekolah update bukti dapodik sudah 100%, berarti semua sekolah sudah update atau
 
 Kesimpulannya, checkpoint sebelumnya masih belum tercapai karena hanya 1 sekolah (5%) yang dokumen teknis sesuainya sudah lengkap, serta terverifikasi dan terunggah masih sedikit."
 
-PENTING: Gunakan HANYA data dari "Tabel Persentase Terkini" untuk menyusun angka-angkanya. Hitung estimasi dokumen dengan akurat (Admin dikali 11, Teknis dikali 6).`;
+PENTING MUTLAK: Gunakan HANYA data dari "Tabel Persentase Terkini" untuk menyusun angka-angkanya. Dilarang keras meniru angka dari contoh.`;
 
   return [
     { role: "system", content: "Anda adalah analis data. Jawab dengan analisis naratif sesuai contoh dan format yang diinstruksikan. Dilarang menggunakan bullet point atau format markdown lain, gunakan paragraf biasa." },

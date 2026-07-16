@@ -17,7 +17,7 @@ export function RawMatriksTable({ row }: { row: FacilRow }) {
                 Metrik
               </th>
               {SKOR_AKHIR_COLUMNS.map((col, idx) => (
-                <th key={idx} className="whitespace-nowrap px-4 py-3 font-medium">
+                <th key={idx} className="min-w-[130px] max-w-[180px] whitespace-normal px-4 py-2 font-medium leading-snug text-center align-bottom">
                   {col.header}
                 </th>
               ))}
@@ -35,14 +35,14 @@ export function RawMatriksTable({ row }: { row: FacilRow }) {
                 if (typeof rawValue === "string" && rawValue.includes("%")) {
                   const num = parseFloat(rawValue);
                   if (!isNaN(num)) {
-                    if (num === 100) colorClass = "text-status-good font-semibold";
-                    else if (num < 50) colorClass = "text-status-critical font-semibold";
-                    else if (num < 90) colorClass = "text-status-warning font-semibold";
+                    if (num === 100) colorClass = "bg-status-good/20 text-ink-primary font-medium";
+                    else if (num < 50) colorClass = "bg-status-critical/20 text-ink-primary font-medium";
+                    else if (num < 90) colorClass = "bg-status-warning/20 text-ink-primary font-medium";
                   }
                 }
 
                 return (
-                  <td key={idx} className={`whitespace-nowrap px-4 py-2.5 ${colorClass}`}>
+                  <td key={idx} className={`whitespace-nowrap px-4 py-2.5 text-center ${colorClass}`}>
                     {rawValue}
                   </td>
                 );
@@ -53,7 +53,7 @@ export function RawMatriksTable({ row }: { row: FacilRow }) {
                 Bobot
               </td>
               {SKOR_AKHIR_COLUMNS.map((col, idx) => (
-                <td key={idx} className="whitespace-nowrap px-4 py-2.5 text-ink-muted">
+                <td key={idx} className="whitespace-nowrap px-4 py-2.5 text-center text-ink-muted">
                   {col.bobot}
                 </td>
               ))}

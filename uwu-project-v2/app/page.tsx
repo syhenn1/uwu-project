@@ -12,6 +12,7 @@ import { FacilitatorTable } from "@/components/FacilitatorTable";
 import { AnalysisPanel } from "@/components/AnalysisPanel";
 import { QualitativeActivityChart } from "@/components/QualitativeActivityChart";
 import { LkAplikasiTable } from "@/components/LkAplikasiTable";
+import { AllFasilRawMatriksTable } from "@/components/AllFasilRawMatriksTable";
 
 export default async function DashboardPage({
   searchParams,
@@ -85,6 +86,8 @@ export default async function DashboardPage({
         title={mode === "alltime" ? `Ringkasan AI - Kondisi Terkini (Hari ${todayHari})` : `Ringkasan AI - Hari ${hari}`}
         buttonLabel="Buat Ringkasan AI"
       />
+
+      <AllFasilRawMatriksTable rows={dayRows} />
 
       <FacilitatorTable rows={dayRows} hari={hari} complianceCounts={complianceCounts} />
 
