@@ -44,36 +44,3 @@ export function averagePct(rows: FacilRow[], kolom: keyof FacilRow): { avg: numb
   if (values.length === 0) return { avg: null, n: 0 };
   return { avg: Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10, n: values.length };
 }
-
-/** Funnel dokumen (Terunggah -> Terverifikasi -> Sesuai) seharusnya menurun
- * atau tetap, TIDAK PERNAH naik - "sesuai" mensyaratkan sudah "terverifikasi"
- * duluan, dan "terverifikasi" mensyaratkan sudah "terunggah lengkap" duluan.
- * Kalau kebalik (mis. Dok Teknis Terverifikasi 45% padahal Dok Teknis
- * Terunggah Lengkap cuma 10%), itu tanda sheet salah hitung/rumus untuk baris
- * ini - BUKAN kondisi nyata di lapangan, jadi tidak boleh dilaporkan sebagai
- * angka pasti ke admin (lihat lib/prompts.ts - ditandai di sini supaya prompt
- * LLM bisa menggantinya dengan "..." alih-alih angka mentah yang tidak masuk akal). */
-export function documentFunnelAnomalies(row: FacilRow): Map<keyof FacilRow, string> {
-  const result = new Map<keyof FacilRow, string>();
-  for (const kategori of ["Admin", "Teknis"] as const) {
-    const terunggahM = metricFor(kategori, "Terunggah");
-    const terverifikasiM = metricFor(kategori, "Terverifikasi");
-    const sesuaiM = metricFor(kategori, "Sesuai");
-    const terunggah = row[terunggahM.kolom];
-    const terverifikasi = row[terverifikasiM.kolom];
-    const sesuai = row[sesuaiM.kolom];
-    if (typeof terunggah === "number" && typeof terverifikasi === "number" && terverifikasi > terunggah + 0.01) {
-      result.set(
-        terverifikasiM.kolom,
-        `${terverifikasiM.label} (${terverifikasi}%) lebih tinggi dari ${terunggahM.label} (${terunggah}%) - tidak logis, tidak mungkin terverifikasi lebih banyak dari yang sudah lengkap terunggah.`
-      );
-    }
-    if (typeof terverifikasi === "number" && typeof sesuai === "number" && sesuai > terverifikasi + 0.01) {
-      result.set(
-        sesuaiM.kolom,
-        `${sesuaiM.label} (${sesuai}%) lebih tinggi dari ${terverifikasiM.label} (${terverifikasi}%) - tidak logis, tidak mungkin "sesuai" tanpa lebih dulu terverifikasi.`
-      );
-    }
-  }
-  return result;
-}

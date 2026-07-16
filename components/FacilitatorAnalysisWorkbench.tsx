@@ -119,7 +119,7 @@ function streakStartDay(history: FacilRow[], key: keyof FacilRow, hari: number, 
  * berapa lama belum ditanggapi), tapi tidak untuk sel yang kosong beneran
  * (tidak ada narasi "sejak" yang berarti buat itu).
  */
-function kendalaDisplay(row: FacilRow, history: FacilRow[], key: keyof FacilRow, hari: number): KendalaDisplay {
+function kendalaDisplayBase(row: FacilRow, history: FacilRow[], key: keyof FacilRow, hari: number): KendalaDisplay {
   const raw = row[key];
   const rawText = typeof raw === "string" ? raw.trim() : "";
   const activeFromDay = KENDALA_ACTIVE_FROM_DAY[key];
@@ -345,7 +345,7 @@ export function FacilitatorAnalysisWorkbench({
       <div className="flex flex-col gap-4 overflow-y-auto p-4">
         <div className="flex flex-col gap-3">
           {KENDALA_FIELDS.map((f) => {
-            const d = kendalaDisplay(row, history, f.key, hari);
+            const d = kendalaDisplayBase(row, history, f.key, hari);
             return (
               <label key={String(f.key)} className="flex flex-col gap-1 text-xs text-ink-secondary">
                 {KEY_TO_HEADER[f.key] ?? f.label}

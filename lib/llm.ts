@@ -122,6 +122,35 @@ async function callGroq(messages: ChatMessage[], opts?: CallOpts): Promise<Provi
   return { content, usageIn: data?.usage?.prompt_tokens, usageOut: data?.usage?.completion_tokens };
 }
 
+// --- OpenRouter (router ke banyak model termasuk Llama gratis, OpenAI-compatible) ---
+
+async function callOpenRouter(messages: ChatMessage[], opts?: CallOpts): Promise<ProviderResult> {
+  const apiKey = process.env.OPENROUTER_API_KEY!;
+  const model = process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct:free";
+
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: opts?.temperature ?? 0.3,
+      max_tokens: opts?.maxTokens ?? 500,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`OpenRouter error ${res.status}: ${text.slice(0, 300)}`);
+  }
+
+  const data = await res.json();
+  const content = data?.choices?.[0]?.message?.content;
+  if (typeof content !== "string") throw new Error("Respons OpenRouter tidak sesuai format yang diharapkan.");
+
+  return { content, usageIn: data?.usage?.prompt_tokens, usageOut: data?.usage?.completion_tokens };
+}
+
 // --- OpenAI (GPT models - api.openai.com, berbayar) ---
 
 async function callOpenAI(messages: ChatMessage[], opts?: CallOpts): Promise<ProviderResult> {
@@ -153,14 +182,16 @@ async function callOpenAI(messages: ChatMessage[], opts?: CallOpts): Promise<Pro
 
 /** Urutan fallback: coba provider pertama yang env var-nya diisi; kalau gagal
  * (kuota habis, rate limit, error apapun), lanjut ke provider berikutnya yang
- * dikonfigurasi. Tiga yang pertama punya tingkatan gratis - HF Inference
- * Providers, Google AI Studio (Gemini), dan Groq. OpenAI ditaruh PALING AKHIR
- * karena berbayar (tidak ada tingkatan gratis) - dipakai sebagai cadangan
- * terakhir kalau ketiga provider gratis di atas semuanya gagal/habis kuota. */
+ * dikonfigurasi. Empat yang pertama punya tingkatan/model gratis - HF Inference
+ * Providers, Google AI Studio (Gemini), Groq, dan OpenRouter (model ":free",
+ * termasuk Llama). OpenAI ditaruh PALING AKHIR karena berbayar (tidak ada
+ * tingkatan gratis) - dipakai sebagai cadangan terakhir kalau semua provider
+ * gratis di atas gagal/habis kuota. */
 const PROVIDERS: Provider[] = [
   { name: "Hugging Face", envVar: "HF_TOKEN", configured: () => !!process.env.HF_TOKEN, call: callHuggingFace },
   { name: "Google Gemini", envVar: "GEMINI_API_KEY", configured: () => !!process.env.GEMINI_API_KEY, call: callGemini },
   { name: "Groq", envVar: "GROQ_API_KEY", configured: () => !!process.env.GROQ_API_KEY, call: callGroq },
+  { name: "OpenRouter", envVar: "OPENROUTER_API_KEY", configured: () => !!process.env.OPENROUTER_API_KEY, call: callOpenRouter },
   { name: "OpenAI", envVar: "OPENAI_API_KEY", configured: () => !!process.env.OPENAI_API_KEY, call: callOpenAI },
 ];
 
@@ -180,7 +211,7 @@ export async function callLLM(messages: ChatMessage[], opts?: CallOpts): Promise
   const candidates = PROVIDERS.filter((p) => p.configured());
   if (candidates.length === 0) {
     const err =
-      "Belum ada provider AI dikonfigurasi. Isi salah satu di .env.local: HF_TOKEN, GEMINI_API_KEY, GROQ_API_KEY, atau OPENAI_API_KEY.";
+      "Belum ada provider AI dikonfigurasi. Isi salah satu di .env.local: HF_TOKEN, GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, atau OPENAI_API_KEY.";
     log(err);
     throw new Error(err);
   }

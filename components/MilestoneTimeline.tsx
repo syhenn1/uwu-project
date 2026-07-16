@@ -214,7 +214,7 @@ function buildRows(todayHari: number, viewedHari: number): Row[] {
 function MarkerRow({ day, variant }: { day: number; variant: "today" | "viewed" }) {
   const isToday = variant === "today";
   return (
-    <div className="relative z-10 flex items-center gap-2.5 py-1">
+    <div className="relative z-10 flex items-center gap-2.5 py-0.5">
       <div className="flex w-5 shrink-0 justify-center">
         <div className={`h-2 w-2 rounded-full ${isToday ? "bg-series-1" : "border-2 border-ink-secondary bg-surface"}`} />
       </div>
@@ -249,27 +249,36 @@ function CheckpointRow({
   entry,
   history,
   viewedHari,
+  anomalyFields,
 }: {
   group: (typeof CHECKPOINT_GROUPS)[number];
   entry: CheckpointCompliance | undefined;
   history: FacilRow[];
   viewedHari: number;
+  anomalyFields?: Set<keyof FacilRow>;
 }) {
   const statusKey: CheckpointCompliance["status"] | "future" = entry ? entry.status : "future";
   const violationCount = entry?.indicators.filter((i) => i.gating && i.status === "violation").length ?? 0;
   const kendalaIssue = entry?.kendala?.isIssue;
+  // Kolom Kendala checkpoint ini (kalau ada pemetaannya) punya anomali
+  // "future_data" AKTIF - data untuk hari yang belum terjadi sudah terisi,
+  // jadi datanya tidak bisa dipercaya. Force dot jadi Merah + tag terpisah,
+  // SAMA seperti pola "ada kendala LK" yang sudah ada.
+  const kendalaKeyForCheckpoint = KENDALA_BY_CHECKPOINT[group.no];
+  const hasFutureDataAnomaly = !!(kendalaKeyForCheckpoint && anomalyFields?.has(kendalaKeyForCheckpoint));
   const readings = buildSourceReadings(group, entry);
   const sources = SOURCE_ORDER.filter((s) => readings.has(s));
+  const dotClass = hasFutureDataAnomaly ? TIER_DOT_CLASS.merah : checkpointDotClass(statusKey, readings);
 
   return (
-    <div className="relative z-10 flex items-start gap-2.5 py-1" title={group.tujuan}>
+    <div className="relative z-10 flex items-start gap-2.5 py-0.5" title={group.tujuan}>
       <div className="flex w-5 shrink-0 justify-center pt-0.5">
-        <div className={`flex h-5 w-5 items-center justify-center rounded-full border-2 text-[9px] font-bold ${checkpointDotClass(statusKey, readings)}`}>
+        <div className={`flex h-5 w-5 items-center justify-center rounded-full border-2 text-[9px] font-bold ${dotClass}`}>
           {group.no}
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5 py-0.5 text-xs leading-tight">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0 text-xs leading-tight">
         <span className="font-medium text-ink-primary">{group.name}</span>
         <span className="text-[10px] text-ink-muted">H{group.activeFromDay}·b{group.bobotTotal}</span>
 
@@ -299,6 +308,11 @@ function CheckpointRow({
             ada kendala LK
           </span>
         )}
+        {hasFutureDataAnomaly && (
+          <span className="rounded bg-status-critical/10 px-1 py-0.5 text-[9px] font-semibold uppercase text-status-critical" title="Data untuk hari yang belum terjadi sudah terisi - lihat Anomali Terdeteksi">
+            anomali data
+          </span>
+        )}
       </div>
     </div>
   );
@@ -309,17 +323,22 @@ export function MilestoneTimeline({
   history,
   todayHari,
   viewedHari,
+  anomalyFields,
 }: {
   compliance: CheckpointCompliance[];
   history: FacilRow[];
   todayHari: number;
   viewedHari: number;
+  /** Kolom dengan anomali "future_data" AKTIF (lihat lib/anomalies.ts) -
+   * checkpoint yang kolom Kendala-nya kena anomali ini dipaksa tampil Merah
+   * + tag "anomali data", terlepas dari status compliance normalnya. */
+  anomalyFields?: Set<keyof FacilRow>;
 }) {
   const rows = buildRows(todayHari, viewedHari);
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
+    <div className="rounded-lg border border-border bg-surface p-2.5">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-ink-primary">Milestone</h2>
         <span className="text-[10px] text-ink-muted">arahkan kursor ke node untuk tujuan checkpoint</span>
       </div>
@@ -337,13 +356,14 @@ export function MilestoneTimeline({
                 entry={compliance.find((c) => c.group.no === row.group.no)}
                 history={history}
                 viewedHari={viewedHari}
+                anomalyFields={anomalyFields}
               />
             )
           )}
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-x-2.5 gap-y-1 border-t border-gridline pt-2 text-[9px] text-ink-muted">
+      <div className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-0.5 border-t border-gridline pt-1.5 text-[9px] text-ink-muted">
         <span className="flex items-center gap-1">
           <span className="h-2 w-2 rounded-full bg-status-good" /> Hijau ≥90% (Sesuai)
         </span>
