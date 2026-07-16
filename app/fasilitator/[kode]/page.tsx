@@ -4,12 +4,11 @@ import { getFacilRows, getTodayHari } from "@/lib/sheet";
 import { getRowsForFacilitator, riskLevel, getEffectiveRisk, getCurrentRow, getFacilitators } from "@/lib/metrics";
 import { getCheckpointCompliance, countNonCompliant } from "@/lib/compliance";
 import { buildNoteRanges, formatHariRange, QUALITATIVE_FIELDS } from "@/lib/notes";
-import { detectFacilitatorAnomalies } from "@/lib/anomalies";
+import { detectFacilitatorAnomalies, fieldsWithFutureDataAnomaly } from "@/lib/anomalies";
 import { TOTAL_HARI_SIKLUS } from "@/lib/knowledge/checkpoints";
 import type { FacilRow } from "@/lib/types";
 import { DaySelector } from "@/components/DaySelector";
 import { ModeToggle } from "@/components/ModeToggle";
-import { TrendChart } from "@/components/TrendChart";
 import { FacilDocumentFunnel } from "@/components/DocumentProgressFunnel";
 import { FacilMetricsList } from "@/components/FacilMetricsList";
 import { FacilitatorAnalysisWorkbench } from "@/components/FacilitatorAnalysisWorkbench";
@@ -65,6 +64,7 @@ export default async function FacilitatorDetailPage({
   const notes = buildNoteRanges(history, QUALITATIVE_FIELDS, (text) => text !== "Belum Diisi");
   const unfilled = buildNoteRanges(history, QUALITATIVE_FIELDS, (text) => text === "Belum Diisi");
   const anomalies = detectFacilitatorAnomalies(history, todayHari);
+  const anomalyFields = fieldsWithFutureDataAnomaly(anomalies);
 
   // Daftar terurut nama - dipakai untuk navigasi Sebelumnya/Selanjutnya, supaya
   // admin bisa review kendala & isi Analisis satu fasilitator demi satu tanpa
@@ -83,6 +83,15 @@ export default async function FacilitatorDetailPage({
     // (yang masih dipakai halaman lain).
     <div className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-4">
+      {anomalies.length > 0 && (
+        <a
+          href="#anomali-terdeteksi"
+          className="block w-full rounded-md border border-status-critical/40 bg-status-critical/10 px-4 py-2.5 text-sm font-semibold text-status-critical hover:bg-status-critical/15"
+        >
+          ⚠ {anomalies.length} anomali terdeteksi pada data fasilitator ini - data mungkin tidak akurat, jangan
+          langsung dipercaya. Lihat detail di bagian &quot;Anomali Terdeteksi&quot; ↓
+        </a>
+      )}
       <div>
         <Link href="/" className="text-sm text-series-1 hover:underline">
           ← Kembali ke Dashboard
@@ -108,9 +117,15 @@ export default async function FacilitatorDetailPage({
           {mode === "harian" && (
             <DaySelector days={days} current={hari} basePath={`/fasilitator/${kode}`} todayHari={todayHari} />
           )}
-          <MilestoneTimeline compliance={compliance} history={history} todayHari={todayHari} viewedHari={mode === "alltime" ? todayHari : hari} />
+          <MilestoneTimeline
+            compliance={compliance}
+            history={history}
+            todayHari={todayHari}
+            viewedHari={mode === "alltime" ? todayHari : hari}
+            anomalyFields={anomalyFields}
+          />
           {anomalies.length > 0 && (
-            <div>
+            <div id="anomali-terdeteksi">
               <h2 className="mb-2 text-sm font-semibold text-ink-primary">Anomali Terdeteksi</h2>
               <AnomalyList items={anomalies} />
             </div>
@@ -118,8 +133,6 @@ export default async function FacilitatorDetailPage({
         </div>
 
         <div className="flex min-w-0 flex-col gap-4">
-          <TrendChart history={history} />
-
           <div>
             <div className="mb-3 flex items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-ink-primary">Progres Dokumen: Terunggah → Terverifikasi → Sesuai</h2>

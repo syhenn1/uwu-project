@@ -3,7 +3,8 @@
 Dashboard Next.js untuk memantau kinerja fasilitator lapangan pada program revitalisasi
 sekolah (14 hari siklus pendampingan), dengan data ditarik dari Google Sheet publik dan
 analisis kualitatif dibantu LLM - dengan fallback otomatis lintas provider (Hugging Face →
-Google Gemini → Groq → OpenAI), lihat bagian [Provider AI](#provider-ai--fallback-otomatis) di bawah.
+Google Gemini → Groq → OpenRouter → OpenAI), lihat bagian
+[Provider AI](#provider-ai--fallback-otomatis) di bawah.
 
 ## Cara jalan
 
@@ -33,8 +34,9 @@ Salin `.env.local.example` menjadi `.env.local` lalu isi:
   copy URL dari address bar apa adanya (`.../edit?gid=...` juga boleh — otomatis
   dikonversi ke endpoint export CSV oleh `lib/sheet.ts`). Kosongkan untuk tetap memakai
   data contoh.
-- Provider AI (`HF_TOKEN`/`GEMINI_API_KEY`/`GROQ_API_KEY`/`OPENAI_API_KEY`) — isi minimal satu,
-  lihat [Provider AI & fallback otomatis](#provider-ai--fallback-otomatis) di bawah.
+- Provider AI (`HF_TOKEN`/`GEMINI_API_KEY`/`GROQ_API_KEY`/`OPENROUTER_API_KEY`/`OPENAI_API_KEY`)
+  — isi minimal satu, lihat [Provider AI & fallback otomatis](#provider-ai--fallback-otomatis)
+  di bawah.
 - `SHEET_CHECKPOINT_GID` — opsional, gid tab "Check Point" kalau beda dari default.
 - `NOTIFY_WEBHOOK_URL` / (`RESEND_API_KEY`+`NOTIFY_EMAIL_TO`+`NOTIFY_EMAIL_FROM`) — opsional,
   lihat bagian [Notifikasi otomatis](#notifikasi-otomatis) di bawah.
@@ -48,8 +50,8 @@ Salin `.env.local.example` menjadi `.env.local` lalu isi:
 ## Provider AI & fallback otomatis
 
 `lib/llm.ts` mencoba provider secara berurutan - **Hugging Face → Google Gemini → Groq →
-OpenAI** - dan otomatis lanjut ke provider berikutnya kalau yang sedang dicoba gagal (kuota
-habis, rate limit, error apapun). Cukup isi provider mana saja yang mau dipakai di
+OpenRouter → OpenAI** - dan otomatis lanjut ke provider berikutnya kalau yang sedang dicoba
+gagal (kuota habis, rate limit, error apapun). Cukup isi provider mana saja yang mau dipakai di
 `.env.local`; yang tidak diisi otomatis dilewati (bukan dianggap error). Kalau semuanya gagal,
 baru muncul error yang merangkum kegagalan tiap provider.
 
@@ -59,9 +61,12 @@ baru muncul error yang merangkum kegagalan tiap provider.
   aistudio.google.com/apikey) + `GEMINI_MODEL` (default `gemini-2.0-flash`).
 - **Groq** — `GROQ_API_KEY` (buat gratis di console.groq.com/keys) + `GROQ_MODEL`
   (default `llama-3.3-70b-versatile`, inferensi Llama super cepat).
+- **OpenRouter** — `OPENROUTER_API_KEY` (buat gratis di openrouter.ai/keys) + `OPENROUTER_MODEL`
+  (default `meta-llama/llama-3.3-70b-instruct:free` - router ke banyak model, model dengan
+  suffix `:free` di namanya tidak dikenai biaya).
 - **OpenAI** — `OPENAI_API_KEY` (buat di platform.openai.com/api-keys, **berbayar** - tidak
   ada tingkatan gratis) + `OPENAI_MODEL` (default `gpt-4o-mini`). Ditaruh paling akhir di
-  urutan fallback karena berbayar, jadi cuma kepakai kalau tiga provider gratis di atas
+  urutan fallback karena berbayar, jadi cuma kepakai kalau empat provider gratis di atas
   semuanya gagal.
 
 Semuanya **selalu lewat API cloud masing-masing** (`lib/llm.ts`), tidak ada model yang

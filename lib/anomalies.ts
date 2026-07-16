@@ -9,6 +9,13 @@ export interface AnomalyItem {
   type: AnomalyType;
   severity: "tinggi" | "sedang";
   detail: string;
+  /** Kolom FacilRow yang jadi sumber anomali ini (kalau anomalinya terikat ke
+   * satu kolom spesifik, mis. "future_data" pada kendalaKomunikasi) - dipakai
+   * UI (mis. FacilitatorAnalysisWorkbench, MilestoneTimeline) untuk menandai
+   * tampilan kolom terkait jadi merah/"ada kendala" tanpa perlu parsing ulang
+   * teks `detail`. undefined untuk anomali yang tidak terikat satu kolom
+   * (mis. never_logged_in). */
+  field?: keyof FacilRow;
 }
 
 export interface FacilitatorAnomalyReport {
@@ -87,6 +94,7 @@ export function detectFacilitatorAnomalies(history: FacilRow[], todayHari: numbe
           type: "future_data",
           severity: "tinggi",
           detail: `Hari ${row.hari} (belum terjadi, hari ini Hari ${todayHari}) sudah berisi "${field.label}": "${v}"`,
+          field: field.key,
         });
       }
     }
@@ -123,6 +131,18 @@ export function detectFacilitatorAnomalies(history: FacilRow[], todayHari: numbe
   }
 
   return items;
+}
+
+/** Kolom-kolom yang punya anomali "future_data" AKTIF (data untuk hari yang
+ * belum terjadi) - dipakai UI untuk menandai tampilan kolom terkait (mis.
+ * kotak Kendala Komunikasi, baris timeline checkpoint 1) jadi merah/"ada
+ * kendala" tanpa perlu parsing ulang teks `detail`. */
+export function fieldsWithFutureDataAnomaly(items: AnomalyItem[]): Set<keyof FacilRow> {
+  const fields = new Set<keyof FacilRow>();
+  for (const item of items) {
+    if (item.type === "future_data" && item.field) fields.add(item.field);
+  }
+  return fields;
 }
 
 /** Menjalankan deteksi anomali untuk seluruh fasilitator di `rows` (output
