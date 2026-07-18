@@ -379,7 +379,10 @@ ATURAN WAJIB:
 4. PENJABARAN ANGKA DOKUMEN: Untuk poin yang mengandung kata "unggah" (Dokumen Admin dan Dokumen Teknis), Anda harus mengonversi persentase "Rata-rata % Dokumen Terunggah" menjadi angka pasti.
    - Syarat Admin: Gunakan angka pembanding 220 dokumen. (Contoh: jika rata-rata 100%, tulis "atau 220 dari 220 dokumen telah terunggah"). Gunakan angka dari \`angkaAbsolut\` JSON.
    - Syarat Teknis: Gunakan angka pembanding 120 dokumen. (Contoh: jika rata-rata 50%, tulis "atau 60 dari 120 dokumen telah terunggah"). Gunakan angka dari \`angkaAbsolut\` JSON.
-5. KETERANGAN KENDALA: Untuk SETIAP poin/metrik yang persentasenya BELUM 100% (belum tuntas) DAN tidak ada "Catatan Kualitatif" terkait dari fasilitator yang menjelaskannya, Anda WAJIB menambahkan kalimat persis seperti ini di akhir paragraf poin tersebut: "Kendala terkait [Nama Poin/Topik] tidak teridentifikasi karena fasil tidak mengisi informasi terkait hal di LK Fasil." Jika sudah ada "Catatan Kualitatif" terkait, sebutkan kendala aslinya.
+5. KETERANGAN KENDALA (WAJIB ADA DI SETIAP POIN BERMASALAH): Untuk SETIAP poin/metrik yang persentasenya BELUM 100% (belum tuntas), Anda WAJIB MENGAKHIRI PARAGRAF TERSEBUT dengan penjelasan kendalanya.
+   - Jika ada "Catatan Kualitatif" terkait dari fasilitator di JSON, sebutkan kendala aslinya.
+   - Jika TIDAK ADA catatan kualitatif terkait di JSON, Anda WAJIB menambahkan kalimat persis ini: "Kendala terkait [Nama Poin/Topik] tidak teridentifikasi karena fasil tidak mengisi informasi terkait hal di LK Fasil."
+   - Jangan pernah melupakan kalimat ini pada metrik yang bermasalah.
 6. PENGHILANGAN TOTAL JIKA 100% ATAU SEMPURNA (SANGAT PENTING): Jika suatu metrik sudah 100% (sempurna) atau 0 masalah, KAMU DILARANG MENYEBUTKANNYA SAMA SEKALI di bagian list (lewati saja poin itu).
 
 FORMAT OUTPUT YANG DIHARAPKAN:
@@ -387,14 +390,14 @@ Nilai capaian fasil atas [Nama Fasil] berada di angka [Skor Akhir]. [Beri 1-2 ka
 
 Checkpoint wajib untuk hari ke-${maxDay} yaitu [Sebutkan checkpoint hari ini dan tujuannya]. Namun, sampai saat ini [sebutkan progresnya, misal: tidak ada sekolah yang sudah sepakat RAB (0%)]. Beberapa hal berikut berpotensi berpengaruh terhadap capaian tersebut:
 
-Sekolah login aplikasi: [Penjelasan objektif]
-Perencana: [Penjelasan objektif]
-Unggah dokumen admin: [Penjelasan objektif + Penjabaran angka /220 dokumen]
-Verifikasi dokumen admin: [Penjelasan objektif]
-Verifikasi dokumen admin "Sesuai": [Penjelasan objektif]
-Unggah dokumen teknis: [Penjelasan objektif + Penjabaran angka /120 dokumen]
-Verifikasi dokumen teknis: [Penjelasan objektif]
-Verifikasi dokumen teknis "Sesuai": [Penjelasan objektif]
+Sekolah login aplikasi: [Penjelasan objektif]. [Kalimat Keterangan Kendala Wajib (karena tidak ada kolom khusus untuk ini)]
+Perencana: [Penjelasan objektif]. [Isi "Kendala Mendapatkan Perencana" JIKA ADA di JSON, ATAU Kalimat Keterangan Kendala Wajib jika kosong]
+Unggah dokumen admin: [Penjelasan objektif + Penjabaran angka /220 dokumen]. [Isi "Kendala Penyusunan Dok. Admin" JIKA ADA di JSON, ATAU Kalimat Keterangan Kendala Wajib jika kosong]
+Verifikasi dokumen admin: [Penjelasan objektif]. [Isi "Kendala Verifikasi Dok. Admin" JIKA ADA di JSON, ATAU Kalimat Keterangan Kendala Wajib jika kosong]
+Verifikasi dokumen admin "Sesuai": [Penjelasan objektif]. [Isi "Kendala Verifikasi Dok. Admin" JIKA ADA di JSON, ATAU Kalimat Keterangan Kendala Wajib jika kosong]
+Unggah dokumen teknis: [Penjelasan objektif + Penjabaran angka /120 dokumen]. [Isi "Kendala Penyusunan Dok. Teknis" JIKA ADA di JSON, ATAU Kalimat Keterangan Kendala Wajib jika kosong]
+Verifikasi dokumen teknis: [Penjelasan objektif]. [Isi "Kendala Verifikasi Dok. Teknis" JIKA ADA di JSON, ATAU Kalimat Keterangan Kendala Wajib jika kosong]
+Verifikasi dokumen teknis "Sesuai": [Penjelasan objektif]. [Isi "Kendala Verifikasi Dok. Teknis" JIKA ADA di JSON, ATAU Kalimat Keterangan Kendala Wajib jika kosong]
 
 Catatan lain:
 - [Jelaskan sisa metrik yang belum dibahas di atas HANYA JIKA bermasalah, seperti Biodata, Dapodik, Keterhubungan, Panlak, Template. Ingat, jika ada metrik di catatan lain ini yang belum 100%, cantumkan juga kalimat Keterangan Kendala wajibnya jika tidak ada catatan kualitatif].
