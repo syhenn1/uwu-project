@@ -3,9 +3,9 @@ import path from "path";
 import Papa from "papaparse";
 import { COLUMN_MAP, toFacilRow } from "@uwu/core/columns";
 import type { FacilRow } from "@uwu/core/types";
-import { isControllerConfigured, getControllerEntries } from "./controller";
-import type { ControllerFacilitatorEntry } from "./controller";
-import { SKOR_AKHIR_COLUMNS, applySkorAkhirColumns, parsePercentCell } from "./skorAkhirColumns";
+import { isControllerConfigured } from "./controller";
+import { getRosterEntries, getMasterLogRows, buildFacilRowFromMasterLog } from "./masterSheet";
+import type { RosterEntry, ParsedMasterLogRow } from "./masterSheet";
 
 const HEADER_ANCHOR = `${COLUMN_MAP[0].header},`; // "Atmin,"
 
@@ -29,253 +29,53 @@ export function isUsingSampleData(): boolean {
 }
 
 /**
- * Nama tab berisi Skor Akhir TERKINI (satu baris) di dalam SETIAP spreadsheet
- * LK pribadi fasilitator - DIKONFIRMASI 2026-07-16: nama tabnya "Isian" (label
- * "Matriks" yang dipakai di komentar lain di file ini cuma teks di salah satu
- * sel, BUKAN nama tab). Dicari lewat NAMA (Google Visualization API,
- * `/gviz/tq?sheet=Isian`) - lebih tahan banting daripada gid, karena nama tab
- * biasanya tetap konsisten walau gid auto-generate bisa beda per salinan.
+ * Sumber data ASLI v2: satu FacilRow (kondisi TERKINI, bukan histori) per
+ * fasilitator, dibaca LANGSUNG dari master spreadsheet (tab "Fasilitator"
+ * untuk roster/Kendala + tab "masterLog" untuk skor - lihat lib/masterSheet.ts),
+ * BUKAN lagi dengan scrape 30 spreadsheet LK individual terpisah (arsitektur
+ * lama, dipensiunkan 2026-07-18). Kalau "masterLog" suatu saat punya lebih
+ * dari satu baris per fasilitator (Hari/Log berbeda-beda seiring waktu),
+ * dipilih baris TERBARU (Hari lalu Log tertinggi).
+ *
+ * SELALU fallback ke data contoh kalau: CONTROLLER_SHEET_URL belum diset,
+ * ATAU fetch tab "masterLog"-nya gagal total (0 baris) - supaya dashboard
+ * tidak pernah kosong total.
  */
-const ISIAN_SHEET_NAME = "Isian";
+let facilRowsCache: { at: number; rows: FacilRow[] } | null = null;
+const FACIL_CACHE_TTL_MS = 5 * 60 * 1000;
 
-/** Fallback gid kalau fetch by-name gagal (mis. penamaan tab beda-beda tipis
- * antar fasilitator) - DIKONFIRMASI di SATU contoh nyata (LK "Ade Kurniawan
- * Anshar"/PNUP-Fasil-64: gid=447897018). Override lewat env var MATRIKS_GID
- * kalau perlu. */
-const MATRIKS_GID = process.env.MATRIKS_GID || "447897018";
-
-function blankFacilRow(): FacilRow {
-  return {
-    atmin: "", hari: 0, hariLabel: "", kodeFasil: "", namaFasil: "", kodeKoor: "", namaKoor: "",
-    fasilBelumLoginLK: null,
-    pctSekolahBelumDihubungi: null,
-    pctSekolahBelumLoginAplikasi: null,
-    frekuensiKomunikasi: null,
-    pctTidakPunyaPanlak: null,
-    pctTidakPunyaFormatTemplate: null,
-    pctBiodataBelumTerverifikasi: null,
-    pctTidakPunyaPerencanaLK: null,
-    pctTidakPunyaPerencanaAplikasi: null,
-    pctDapodikTidakSesuaiBelumUpdate: null,
-    pctSudahUpdateDapodik: null,
-    pctSudahUploadBuktiUpdateDapodik: null,
-    penyusunanDokAdminTerkendala: null,
-    pctDokAdminTerunggahLengkap: null,
-    rataDokAdminTerunggah: null,
-    minDokAdminTerunggah: null,
-    pctDokAdminTerunggahDibawah90: null,
-    pctDokAdminTerverifikasi: null,
-    rataDokAdminTerverifikasi: null,
-    minDokAdminTerverifikasi: null,
-    pctDokAdminTerverifikasiDibawah90: null,
-    pctDokAdminSesuai: null,
-    rataDokAdminSesuai: null,
-    minDokAdminSesuai: null,
-    pctDokAdminSesuaiDibawah90: null,
-    penyusunanDokTeknisTerkendala: null,
-    pctDokTeknisTerunggahLengkap: null,
-    rataDokTeknisTerunggah: null,
-    minDokTeknisTerunggah: null,
-    pctDokTeknisTerunggahDibawah90: null,
-    pctDokTeknisTerverifikasi: null,
-    rataDokTeknisTerverifikasi: null,
-    minDokTeknisTerverifikasi: null,
-    pctDokTeknisTerverifikasiDibawah90: null,
-    pctDokTeknisSesuai: null,
-    rataDokTeknisSesuai: null,
-    minDokTeknisSesuai: null,
-    pctDokTeknisSesuaiDibawah90: null,
-    pctBelumSepakatRAB: null,
-    nilaiRisiko: null,
-    kendalaKomunikasi: null,
-    kendalaPanlakFormatTemplate: null,
-    kendalaMendapatkanPerencana: null,
-    kendalaVerifikasiBiodata: null,
-    kendalaUpdateDapodik: null,
-    kendalaPenyusunanDokAdmin: null,
-    kendalaVerifikasiDokAdmin: null,
-    kendalaPenyusunanDokTeknis: null,
-    kendalaVerifikasiDokTeknis: null,
-    kendalaPenyepakatanRAB: null,
-    analisis: null,
-    catatanAdmin: null,
-    skorAkhir: null,
-    raw: {},
-  };
-}
-
-/**
- * Parses tab "Isian" (label "Matriks" di salah satu selnya) satu fasilitator -
- * DIKONFIRMASI 2026-07-16 (contoh nyata "Ade Kurniawan Anshar"): beberapa
- * baris label/dropdown di atas
- * ("Pilih Nama Fasilitator", "Hari ke", baris bobot 2/2/2/.../12), baris
- * header sebenarnya diawali "Atmin" (kolom: Atmin, Hari Ke -, Kode Fasil,
- * Nama Fasil, Kode Koor, Nama Koor, lalu 26 kolom Skor Akhir - lihat
- * lib/skorAkhirColumns.ts), TEPAT SATU baris data setelah header (cuma
- * snapshot HARI INI, bukan histori 14 hari seperti "Level Fasil" v1 - lihat
- * catatan di README.md soal implikasinya), lalu kolom ke-27 (tanpa nama
- * header, sel kosong di baris header) berisi angka "Skor Akhir" total.
- * Dipakai header:false (bukan header:true) karena kolom terakhir itu TIDAK
- * punya nama header sama sekali - Papa.parse(header:true) akan
- * memperlakukan itu tidak konsisten antar versi/baris. */
-function parseMatriksCsv(csv: string): { identity: string[]; values: string[]; skorAkhirRaw: string } | null {
-  const parsed = Papa.parse<string[]>(csv, { header: false, skipEmptyLines: false });
-  const rows = parsed.data;
-  const headerIdx = rows.findIndex((r) => (r[0] ?? "").trim() === "Atmin");
-  if (headerIdx === -1) return null;
-  const dataRow = rows[headerIdx + 1];
-  if (!dataRow || (dataRow[2] ?? "").trim() === "") return null; // kolom C = Kode Fasil kosong = bukan baris data
-  return {
-    identity: dataRow.slice(0, 6),
-    values: dataRow.slice(6, 6 + SKOR_AKHIR_COLUMNS.length),
-    skorAkhirRaw: dataRow[6 + SKOR_AKHIR_COLUMNS.length] ?? "",
-  };
-}
-
-/** Fetch satu CSV, mengembalikan text-nya kalau HTTP 200, null kalau gagal
- * (fetch error ATAU status non-200) - dipakai fetchFacilitatorMatriks() untuk
- * coba nama tab dulu, baru fallback ke gid. */
-async function tryFetchCsv(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, { next: { revalidate: 300 } });
-    if (!res.ok) return null;
-    return await res.text();
-  } catch {
-    return null;
-  }
-}
-
-// Fungsi parseLogCsv dihapus karena sudah tidak dipakai (digantikan fetchFacilitatorLog)
-
-/** Fetch + parse tab "Isian" (untuk Skor Akhir) dan "Log" (untuk data mentah).
- * Coba by-name dulu (ISIAN_SHEET_NAME), fallback ke gid (MATRIKS_GID) kalau
- * itu gagal. null kalau dua-duanya gagal (dicatat via console.warn, TIDAK
- * throw - satu fasilitator gagal tidak boleh menggagalkan semua). */
-async function fetchFacilitatorMatriks(entry: ControllerFacilitatorEntry): Promise<FacilRow | null> {
-  // Sesuai permintaan user: ambil data mutlak dari baris log terakhir di sheet Log,
-  // bukan dari sheet Isian yang realtime.
-  const logData = await fetchFacilitatorLog(entry);
-  if (logData && logData.history.length > 0) {
-    return logData.history[logData.history.length - 1];
+export async function getFacilRows(): Promise<FacilRow[]> {
+  if (facilRowsCache && Date.now() - facilRowsCache.at < FACIL_CACHE_TTL_MS) {
+    return facilRowsCache.rows;
   }
 
-  // Fallback ke tab "Isian" jika sheet Log gagal dibaca (misal format berubah)
-  const byNameUrl = `https://docs.google.com/spreadsheets/d/${entry.spreadsheetId}/gviz/tq?${new URLSearchParams({ tqx: "out:csv", sheet: ISIAN_SHEET_NAME }).toString()}`;
-  const byGidUrl = `https://docs.google.com/spreadsheets/d/${entry.spreadsheetId}/export?format=csv&gid=${MATRIKS_GID}`;
+  if (!isControllerConfigured()) return loadSampleRows();
 
-  let csvIsian = await tryFetchCsv(byNameUrl);
-  let matriksIsian = csvIsian ? parseMatriksCsv(csvIsian) : null;
-  if (!matriksIsian) {
-    csvIsian = await tryFetchCsv(byGidUrl);
-    matriksIsian = csvIsian ? parseMatriksCsv(csvIsian) : null;
-  }
-  if (!matriksIsian) {
-    console.warn(`[sheet] Tab "${ISIAN_SHEET_NAME}" (atau gid=${MATRIKS_GID} fallback) tidak bisa diakses/di-parse untuk ${entry.kodeFasil} - kemungkinan sheet belum di-share publik, atau nama/gid tab beda di sheet ini.`);
-    return null;
-  }
-  
-  // Tidak perlu lagi mem-parsing Log secara terpisah karena sudah dicoba di awal
-  // dan kalau sampai sini berarti Log gagal diakses.
-
-  const [atmin, hariKeRaw, kodeFasil, namaFasil, kodeKoor, namaKoor] = matriksIsian.identity;
-  const hari = parseInt((hariKeRaw ?? "").trim(), 10) || 0;
-  const skorAkhir = parsePercentCell(matriksIsian.skorAkhirRaw);
-
-  const row = blankFacilRow();
-  row.atmin = (atmin ?? "").trim() || entry.atmin;
-  row.hari = hari;
-  row.hariLabel = `Hari ${hari}`;
-  row.kodeFasil = (kodeFasil ?? "").trim() || entry.kodeFasil;
-  row.namaFasil = (namaFasil ?? "").trim() || entry.namaFasil;
-  row.kodeKoor = (kodeKoor ?? "").trim();
-  row.namaKoor = (namaKoor ?? "").trim();
-  if (skorAkhir != null) {
-    row.skorAkhir = skorAkhir;
+  const [rosterEntries, logRows] = await Promise.all([getRosterEntries(), getMasterLogRows()]);
+  if (logRows.length === 0) {
+    console.warn('[sheet] Tab "masterLog" tidak mengembalikan baris apa pun - masih memakai data contoh.');
+    return loadSampleRows();
   }
 
-  const rawValues = matriksIsian.values;
+  const rosterByName = new Map<string, RosterEntry>(rosterEntries.map((r) => [r.namaFasil, r]));
 
-  const rawRecord: Record<string, string> = {};
-  SKOR_AKHIR_COLUMNS.forEach((col, i) => {
-    rawRecord[col.header] = rawValues[i] ?? "";
-  });
-  row.raw = rawRecord;
-  Object.assign(row, applySkorAkhirColumns(rawRecord));
-
-  return row;
-}
-
-// --- Tab "Log" (histori multi-hari + snapshot Log 1/Log 2 per hari) -----
-
-/**
- * Nama tab berisi HISTORI multi-hari (beda dari "Isian"/"Matriks" yang cuma
- * snapshot HARI INI) di dalam SETIAP spreadsheet LK pribadi fasilitator -
- * DIKONFIRMASI 2026-07-17 lewat fetch langsung: dua baris per hari ("Log 1
- * di 07.00 WIB" dan "Log 2 di 13.30 WIB"), kolom sama seperti tab "Isian"
- * (Kode Fasil, Nama Fasil, Kode Koor, Nama Koor, lalu 26 kolom Skor Akhir +
- * total) TAPI kolom pertamanya label Log (bukan Atmin) dan kolom kedua sudah
- * berupa angka "Hari" mentah (bukan label "Hari Ke -"). Baris untuk hari yang
- * belum terjadi/belum diisi tetap ADA tapi kosong (Kode Fasil dkk. blank) -
- * itu ditandai sebagai "belum ada data", bukan ikut jadi baris histori.
- */
-const LOG_SHEET_NAME = "Log";
-
-interface ParsedLogRow {
-  hari: number;
-  logNumber: number;
-  identity: string[]; // [kodeFasil, namaFasil, kodeKoor, namaKoor]
-  values: string[];
-  skorAkhirRaw: string;
-}
-
-/** Parses satu baris data tab "Log" (Papa.parse header:false, array kolom
- * mentah) - null kalau bukan baris log yang valid (kolom pertama bukan
- * "Log N di ...", atau kolom "Hari" bukan angka). */
-function parseLogRow(cols: string[]): ParsedLogRow | null {
-  const label = (cols[0] ?? "").trim();
-  const logMatch = label.match(/^Log\s*(\d+)/i);
-  if (!logMatch) return null;
-  const hari = parseInt((cols[1] ?? "").trim(), 10);
-  if (!hari) return null;
-  return {
-    hari,
-    logNumber: parseInt(logMatch[1], 10),
-    identity: cols.slice(2, 6),
-    values: cols.slice(6, 6 + SKOR_AKHIR_COLUMNS.length),
-    skorAkhirRaw: cols[6 + SKOR_AKHIR_COLUMNS.length] ?? "",
-  };
-}
-
-/** Bangun FacilRow dari satu ParsedLogRow - pola sama persis dengan bagian
- * akhir fetchFacilitatorMatriks di atas, cuma identity-nya beda urutan/isi
- * (tidak ada "Atmin"/"Hari Ke -" per baris di tab "Log", jadi atmin & hari
- * diambil dari entry controller + kolom "Hari" tab Log). */
-function buildFacilRowFromLog(entry: ControllerFacilitatorEntry, parsed: ParsedLogRow): FacilRow {
-  const [kodeFasil, namaFasil, kodeKoor, namaKoor] = parsed.identity;
-  const skorAkhir = parsePercentCell(parsed.skorAkhirRaw);
-
-  const row = blankFacilRow();
-  row.atmin = entry.atmin;
-  row.hari = parsed.hari;
-  row.hariLabel = `Hari ${parsed.hari}`;
-  row.kodeFasil = (kodeFasil ?? "").trim() || entry.kodeFasil;
-  row.namaFasil = (namaFasil ?? "").trim() || entry.namaFasil;
-  row.kodeKoor = (kodeKoor ?? "").trim();
-  row.namaKoor = (namaKoor ?? "").trim();
-  if (skorAkhir != null) {
-    row.nilaiRisiko = 100 - skorAkhir;
-    row.skorAkhir = skorAkhir;
+  // Ambil baris TERBARU per fasilitator (Hari lalu Log tertinggi) - masterLog
+  // bisa punya >1 baris per fasilitator seiring waktu (satu per Hari/Log).
+  const latestByName = new Map<string, ParsedMasterLogRow>();
+  for (const row of logRows) {
+    const prev = latestByName.get(row.namaFasil);
+    if (!prev || row.hari > prev.hari || (row.hari === prev.hari && row.logNumber > prev.logNumber)) {
+      latestByName.set(row.namaFasil, row);
+    }
   }
 
-  const rawRecord: Record<string, string> = {};
-  SKOR_AKHIR_COLUMNS.forEach((col, i) => {
-    rawRecord[col.header] = parsed.values[i] ?? "";
-  });
-  row.raw = rawRecord;
-  Object.assign(row, applySkorAkhirColumns(rawRecord));
+  const rows = [...latestByName.values()].map((row) => buildFacilRowFromMasterLog(row, rosterByName.get(row.namaFasil)));
 
-  return row;
+  facilRowsCache = { at: Date.now(), rows };
+  return rows;
 }
+
+// --- Histori multi-hari per fasilitator (halaman /fasilitator/[kode]) -----
 
 export interface DayLogSnapshot {
   log1: FacilRow | null;
@@ -292,36 +92,29 @@ export interface FacilitatorLogData {
   logsByHari: Map<number, DayLogSnapshot>;
 }
 
-/** Fetch + parse tab "Log" satu fasilitator (histori multi-hari + Log 1/Log 2
- * per hari) - null kalau tab-nya tidak ada/tidak bisa diakses (dicatat via
- * console.warn, TIDAK throw, sama seperti fetchFacilitatorMatriks: satu
- * fasilitator gagal tidak boleh menggagalkan halaman). */
-async function fetchFacilitatorLog(entry: ControllerFacilitatorEntry): Promise<FacilitatorLogData | null> {
-  const url = `https://docs.google.com/spreadsheets/d/${entry.spreadsheetId}/gviz/tq?${new URLSearchParams({ tqx: "out:csv", sheet: LOG_SHEET_NAME }).toString()}`;
-  const csv = await tryFetchCsv(url);
-  if (!csv) {
-    console.warn(`[sheet] Tab "${LOG_SHEET_NAME}" tidak bisa diakses/di-parse untuk ${entry.kodeFasil}.`);
-    return null;
-  }
+/**
+ * Histori multi-hari + snapshot Log 1/Log 2 SATU fasilitator, dari tab
+ * "masterLog" di master spreadsheet (di-filter ke Nama Fasil fasilitator
+ * ini, lewat roster tab "Fasilitator" untuk resolve Kode Fasil -> Nama
+ * Fasil). null kalau kodeFasil tidak ditemukan di roster ATAU tidak ada
+ * baris masterLog untuk fasilitator itu.
+ */
+export async function getFacilitatorLogData(kodeFasil: string): Promise<FacilitatorLogData | null> {
+  const rosterEntries = await getRosterEntries();
+  const roster = rosterEntries.find((e) => e.kodeFasil === kodeFasil);
+  if (!roster) return null;
 
-  const parsed = Papa.parse<string[]>(csv, { header: false, skipEmptyLines: false });
-  const rows = parsed.data;
-  const headerIdx = rows.findIndex((r) => (r[0] ?? "").trim() === "Log");
-  if (headerIdx === -1) {
-    console.warn(`[sheet] Baris header tab "${LOG_SHEET_NAME}" (kolom pertama "Log") tidak ditemukan untuk ${entry.kodeFasil}.`);
-    return null;
-  }
+  const logRows = await getMasterLogRows();
+  const mine = logRows.filter((r) => r.namaFasil === roster.namaFasil);
+  if (mine.length === 0) return null;
 
   const logsByHari = new Map<number, DayLogSnapshot>();
-  for (let i = headerIdx + 1; i < rows.length; i++) {
-    const parsedRow = parseLogRow(rows[i]);
-    if (!parsedRow) continue;
-    if ((rows[i][2] ?? "").trim() === "") continue; // kolom C = Kode Fasil kosong = belum ada data log ini
-    const facilRow = buildFacilRowFromLog(entry, parsedRow);
-    const slot = logsByHari.get(parsedRow.hari) ?? { log1: null, log2: null };
-    if (parsedRow.logNumber === 1) slot.log1 = facilRow;
-    else if (parsedRow.logNumber === 2) slot.log2 = facilRow;
-    logsByHari.set(parsedRow.hari, slot);
+  for (const parsed of mine) {
+    const facilRow = buildFacilRowFromMasterLog(parsed, roster);
+    const slot = logsByHari.get(parsed.hari) ?? { log1: null, log2: null };
+    if (parsed.logNumber === 1) slot.log1 = facilRow;
+    else if (parsed.logNumber === 2) slot.log2 = facilRow;
+    logsByHari.set(parsed.hari, slot);
   }
 
   const history: FacilRow[] = [];
@@ -335,85 +128,10 @@ async function fetchFacilitatorLog(entry: ControllerFacilitatorEntry): Promise<F
   return { history, logsByHari };
 }
 
-/**
- * Histori multi-hari + snapshot Log 1/Log 2 SATU fasilitator, dari tab "Log"
- * di spreadsheet LK pribadinya - lihat catatan LOG_SHEET_NAME di atas.
- * Dipakai KHUSUS di halaman /fasilitator/[kode] (bukan getFacilRows), supaya
- * DaySelector bisa menampilkan semua hari yang datanya sudah ada (bukan cuma
- * 1 hari terkini seperti tab "Isian"). null kalau kodeFasil tidak ditemukan
- * di controller ATAU fetch tab "Log"-nya gagal total - pemanggil harus
- * fallback ke histori 1-baris dari getFacilRows() seperti sebelumnya.
- */
-export async function getFacilitatorLogData(kodeFasil: string): Promise<FacilitatorLogData | null> {
-  const entries = await getControllerEntries();
-  const entry = entries.find((e) => e.kodeFasil === kodeFasil);
-  if (!entry) return null;
-  return fetchFacilitatorLog(entry);
-}
+// --- "Hari ke-" hari ini (tab "Check Point" di master spreadsheet) --------
 
 /**
- * Sumber data ASLI v2: satu FacilRow (kondisi TERKINI, bukan histori) per
- * fasilitator, di-fetch paralel dari tab "Matriks" masing-masing 30
- * spreadsheet LK (lihat fetchFacilitatorMatriks). SELALU fallback ke data
- * contoh kalau: controller belum dikonfigurasi, ATAU fetch real-nya gagal
- * total (0 baris berhasil) - supaya dashboard tidak pernah kosong total.
- * Fetch PARSIAL (mis. 25 dari 30 berhasil) TETAP dipakai apa adanya (bukan
- * fallback ke sample) - fasilitator yang gagal tercatat di log server
- * (lihat fetchFacilitatorMatriks), sisanya tetap data asli.
- *
- * KETERBATASAN (lihat README.md): tab "Matriks"/"Isian" cuma expose kondisi
- * HARI INI, bukan histori multi-hari - jadi `getFacilRows()` mengembalikan
- * HANYA 1 baris per fasilitator. TERNYATA ada sumber histori terpisah, tab
- * "Log" (dikonfirmasi 2026-07-17, lihat getFacilitatorLogData di bawah) -
- * dipakai KHUSUS di halaman /fasilitator/[kode] (histori per-hari + snapshot
- * Log 1/Log 2 hari ini), belum dipakai di sini (getFacilRows tetap 1
- * baris/fasilitator) supaya dashboard/perbandingan yang butuh SATU baris
- * "kondisi terkini" per fasilitator tidak perlu diubah sekaligus.
- */
-let facilRowsCache: { at: number; rows: FacilRow[] } | null = null;
-const FACIL_CACHE_TTL_MS = 5 * 60 * 1000;
-
-export async function getFacilRows(): Promise<FacilRow[]> {
-  if (facilRowsCache && Date.now() - facilRowsCache.at < FACIL_CACHE_TTL_MS) {
-    return facilRowsCache.rows;
-  }
-
-  if (!isControllerConfigured()) return loadSampleRows();
-
-  const entries = await getControllerEntries();
-  if (entries.length === 0) {
-    console.warn("[sheet] Controller tidak mengembalikan fasilitator apa pun - masih memakai data contoh.");
-    return loadSampleRows();
-  }
-
-  const results: (FacilRow | null)[] = [];
-  const BATCH_SIZE = 5;
-  for (let i = 0; i < entries.length; i += BATCH_SIZE) {
-    const batch = entries.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(batch.map(fetchFacilitatorMatriks));
-    results.push(...batchResults);
-    if (i + BATCH_SIZE < entries.length) {
-      await new Promise(r => setTimeout(r, 600)); // Jeda 600ms antar batch untuk mencegah rate limit
-    }
-  }
-  const rows = results.filter((r): r is FacilRow => r !== null);
-
-  if (rows.length === 0) {
-    console.warn(`[sheet] Semua ${entries.length} fetch LK fasilitator gagal - masih memakai data contoh. Cek log di atas untuk penyebabnya.`);
-    return loadSampleRows();
-  }
-  if (rows.length < entries.length) {
-    console.warn(`[sheet] ${rows.length} dari ${entries.length} fasilitator berhasil diambil datanya - sisanya dilewati (lihat log di atas).`);
-  }
-  
-  facilRowsCache = { at: Date.now(), rows };
-  return rows;
-}
-
-// --- "Hari ke-" hari ini (tab "Check Point" di spreadsheet controller) --
-
-/**
- * DIKONFIRMASI 2026-07-16: tab "Check Point" ada di spreadsheet CONTROLLER
+ * DIKONFIRMASI 2026-07-16: tab "Check Point" ada di spreadsheet MASTER
  * (bukan spreadsheet terpisah), kolom persis sama dengan v1 - "No",
  * "Tanggal", "Hari ke-", "Checkpoints" - dan 14 baris checkpoint-nya (nama +
  * "Hari ke-") cocok PERSIS dengan yang dipakai di
@@ -452,7 +170,7 @@ export interface CheckpointScheduleEntry {
   tanggal: Date | null;
 }
 
-/** Fetches tab "Check Point" dari spreadsheet controller. Mengembalikan []
+/** Fetches tab "Check Point" dari spreadsheet master. Mengembalikan []
  * kalau CONTROLLER_SHEET_URL belum diset, ATAU fetch-nya gagal (mis. sheet
  * belum di-share publik) - getTodayHari() di bawah otomatis fallback ke
  * jangkar tetap di kedua kasus itu, sama seperti v1. */
@@ -492,7 +210,7 @@ function stripTime(d: Date): Date {
 /** Menentukan "Hari ke-" untuk tanggal tertentu (default hari ini), berdasar
  * jadwal di tab "Check Point" kalau tersedia, dengan fallback ke
  * FALLBACK_ANCHOR kalau tidak. Hasil di-clamp ke rentang siklus 1-14 - pola
- * identik v1 (lib/sheet.ts), cuma sumbernya sekarang controller sheet. */
+ * identik v1 (lib/sheet.ts), cuma sumbernya sekarang master spreadsheet. */
 export async function getTodayHari(referenceDate: Date = new Date()): Promise<number> {
   const schedule = await getCheckpointSchedule();
   const anchorEntry = schedule.find((e) => e.tanggal != null);

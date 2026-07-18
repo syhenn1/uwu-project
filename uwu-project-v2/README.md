@@ -9,6 +9,27 @@ Analisis kualitatif tetap dibantu LLM lewat kode yang **sama persis** dengan v1 
 [Monorepo & LLM yang sama persis](#monorepo--llm-yang-sama-persis) di bawah) - fallback
 otomatis lintas provider Hugging Face → Google Gemini → Groq → OpenRouter → OpenAI.
 
+## 🔐 Login Google (baru, per 2026-07-18)
+
+Seluruh app sekarang di balik gerbang login (`middleware.ts`) - langkah awal
+menuju arsitektur baru (satu spreadsheet "master" + tab `masterLog`,
+menggantikan controller di atas, dan tulis lewat token OAuth admin alih-alih
+webhook Apps Script terpisah). Alur:
+
+1. Belum login → redirect ke `/login` ("Masuk dengan Google").
+2. Login ditolak kalau email TIDAK ada di `ADMIN_EMAILS` (whitelist, pisah
+   koma di `.env.local`) - fail-closed, kosong berarti semua ditolak.
+3. Sudah login tapi belum pernah pilih admin → redirect ke `/pilih-admin`
+   (daftar nama Atmin unik dari `lib/admins.ts`, sumbernya `getFacilRows()`
+   yang sama dipakai dashboard - otomatis ikut pindah ke `masterLog` nanti
+   begitu sumber datanya dialihkan). Pilihan disimpan di cookie
+   `selected_admin`, dipakai belakangan untuk memfilter log per admin.
+4. Header nampilin email yang login, admin yang dipilih (bisa diklik untuk
+   ganti), dan tombol "Keluar".
+
+Setup: lihat blok "Login Google" di `.env.local.example` untuk cara bikin
+OAuth Client ID (Google Cloud Console) + generate `AUTH_SECRET`.
+
 ## ⚠️ Status implementasi (per 2026-07-16)
 
 **Sudah jalan dengan data asli**, diverifikasi live terhadap 30 spreadsheet LK sungguhan:
