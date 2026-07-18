@@ -54,6 +54,7 @@ const KENDALA_COLUMNS: { header: string; kolom: keyof FacilRow }[] = [
   { header: "Kendala Penyusunan Dokumen Teknis", kolom: "kendalaPenyusunanDokTeknis" },
   { header: "Kendala Verifikasi Dokumen Teknis oleh Fasilitator", kolom: "kendalaVerifikasiDokTeknis" },
   { header: "Kendala Penyepakatan RAB", kolom: "kendalaPenyepakatanRAB" },
+  { header: "Jumlah Sekolah Mengundurkan Diri", kolom: "jumlahSekolahMengundurkanDiri" },
 ];
 
 export interface RosterEntry {
@@ -227,6 +228,7 @@ function blankFacilRow(): FacilRow {
     kendalaPenyusunanDokTeknis: null,
     kendalaVerifikasiDokTeknis: null,
     kendalaPenyepakatanRAB: null,
+    jumlahSekolahMengundurkanDiri: null,
     analisis: null,
     catatanAdmin: null,
     skorAkhir: null,

@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
+import { ADMIN_EMAIL_MAP } from "./admins";
 
 /**
  * Login Google + whitelist email, GANTI dari alur berbasis webhook Apps
@@ -9,10 +10,10 @@ import Google from "next-auth/providers/google";
  * admin (lihat lib/admins.ts) - pemakaian token OAuth untuk baca/tulis
  * "masterLog" menyusul.
  *
- * ADMIN_EMAILS kosong = TOLAK SEMUA login (fail-closed), bukan fail-open -
- * whitelist ini satu-satunya kontrol akses ke data kinerja fasilitator.
+ * ADMIN_EMAILS kosong = Cek terhadap ADMIN_EMAIL_MAP (di lib/admins.ts). 
+ * Kalau email tidak ada di map dan env var kosong = TOLAK (fail-closed).
  */
-const allowedEmails = (process.env.ADMIN_EMAILS ?? "")
+const envEmails = (process.env.ADMIN_EMAILS ?? "")
   .split(",")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
@@ -33,8 +34,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async signIn({ user }) {
       const email = user.email?.toLowerCase();
-      if (!email || !allowedEmails.includes(email)) {
-        console.warn(`[auth] Login ditolak untuk "${email ?? "(tanpa email)"}" - tidak ada di ADMIN_EMAILS.`);
+      const isMappedAdmin = email ? !!ADMIN_EMAIL_MAP[email] : false;
+      const isEnvAdmin = email ? envEmails.includes(email) : false;
+
+      if (!isMappedAdmin && !isEnvAdmin) {
+        console.warn(`[auth] Login ditolak untuk "${email ?? "(tanpa email)"}" - tidak ada di ADMIN_EMAIL_MAP maupun env ADMIN_EMAILS.`);
         return false;
       }
       return true;

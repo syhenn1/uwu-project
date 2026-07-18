@@ -305,7 +305,7 @@ function buildQualitativeNotes(history: FacilRow[]): string {
 
 export function buildFacilitatorAnalysisMessages(
   history: FacilRow[],
-  options?: { excludeAplikasi?: boolean; anomalyFields?: Set<keyof FacilRow> }
+  options?: { excludeAplikasi?: boolean; anomalyFields?: Set<keyof FacilRow>; targetHari?: number }
 ): ChatMessage[] {
   if (history.length === 0) throw new Error("Tidak ada data histori untuk fasilitator ini.");
   const maxDay = history[history.length - 1].hari;
@@ -326,6 +326,9 @@ export function buildFacilitatorAnalysisMessages(
     kodeKoor: latest.kodeKoor,
     hariKe: maxDay,
     skorAkhir: latest.skorAkhir ?? null,
+    progressPengisianLK: options?.targetHari && maxDay < options.targetHari 
+      ? `Fasilitator baru mengisi LK sampai Hari ke-${maxDay} (padahal siklus berjalan saat ini sudah Hari ke-${options.targetHari}). Ini berarti fasilitator telat update data!` 
+      : "Data Up-to-date",
     // Kita filter data persentase hanya yang esensial agar AI tidak salah ambil
     persentaseTerkini: {
       "Sekolah Belum Login Aplikasi": `${latest.pctSekolahBelumLoginAplikasi ?? 0}%`,
@@ -379,6 +382,8 @@ Struktur Paragraf yang Wajib Diikuti:
 2. **Checkpoint**: Sebutkan apakah hari ini ada checkpoint baru atau masih melanjutkan checkpoint sebelumnya, lalu sebutkan apakah sudah tercapai atau belum.
 3. **Analisis Kendala Utama (HANYA YANG BERMASALAH)**:
    - Evaluasi setiap kategori berikut HANYA JIKA persentasenya belum sempurna. Jika sempurna (100%), LEWATI kategori tersebut sepenuhnya.
+   - **Sekolah Mengundurkan Diri**: Jika ada catatan "Jumlah Sekolah Mengundurkan Diri" di Catatan Kualitatif, WAJIB sebutkan jumlahnya dan kaitkan bahwa ini berdampak pada angka capaian yang menurun.
+   - **Progress LK**: Jika ada peringatan di "progressPengisianLK" JSON bahwa fasilitator telat update/baru mengisi sampai hari ke-X, WAJIB sebutkan di awal analisis bahwa data mereka tertinggal (misal: "Fasilitator baru mengisi LK sampai Hari ke-6 padahal seharusnya sudah Hari ke-13, sehingga data di bawah ini mungkin kurang akurat/usang.")
    - **Aplikasi**: Bahas hanya jika ada sekolah yang belum login.
    - **Perencana**: Bahas hanya jika ada sekolah yang belum punya perencana, sebutkan dampaknya.
    - **Dokumen Teknis**: Bahas hanya jika belum 120 terunggah/terverifikasi/sesuai. Sebutkan absolut terunggah, lalu absolut terverifikasi (dari yg terunggah), lalu absolut sesuai (dari 120).

@@ -14,6 +14,7 @@ export const QUALITATIVE_FIELDS: ReadonlyArray<{ key: keyof FacilRow; label: str
   { key: "kendalaPenyusunanDokTeknis", label: "Kendala Penyusunan Dok. Teknis" },
   { key: "kendalaVerifikasiDokTeknis", label: "Kendala Verifikasi Dok. Teknis" },
   { key: "kendalaPenyepakatanRAB", label: "Kendala Penyepakatan RAB" },
+  { key: "jumlahSekolahMengundurkanDiri", label: "Jumlah Sekolah Mengundurkan Diri" },
   { key: "analisis", label: "Analisis (admin)" },
   { key: "catatanAdmin", label: "Catatan Admin" },
 ];

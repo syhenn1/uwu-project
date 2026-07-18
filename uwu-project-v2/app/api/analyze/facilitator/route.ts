@@ -34,7 +34,10 @@ export async function POST(req: NextRequest) {
 
     const anomalyFields = fieldsWithFutureDataAnomaly(detectFacilitatorAnomalies(history, todayHari));
 
-    const messages = buildFacilitatorAnalysisMessages(history, { excludeAplikasi: !!excludeAplikasi, anomalyFields });
+    // targetHari di set ke 'hari' yang diminta (kalau spesifik) atau 'todayHari' kalau mode alltime
+    const targetHari = typeof hari === "number" ? hari : todayHari;
+
+    const messages = buildFacilitatorAnalysisMessages(history, { excludeAplikasi: !!excludeAplikasi, anomalyFields, targetHari });
     console.log(`\n\n--- [AI DEBUG] INPUT TO LLM UNTUK ${kodeFasil} ---`);
     console.log(JSON.stringify(messages, null, 2));
 
