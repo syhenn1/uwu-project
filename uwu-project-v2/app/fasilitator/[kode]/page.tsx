@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getFacilRowsForSelectedAdmin, getTodayHari, getFacilitatorLogData } from "@/lib/sheet";
 import { fetchAnalisisFromSheet } from "@/lib/writeSheet";
+import { auth } from "@/lib/auth";
 import { getRowsForFacilitator, riskLevel, getEffectiveRisk, getCurrentRow, getFacilitators } from "@uwu/core/metrics";
 import { getCheckpointCompliance, countNonCompliant } from "@uwu/core/compliance";
 import { buildNoteRanges, formatHariRange, QUALITATIVE_FIELDS } from "@uwu/core/notes";
@@ -33,15 +34,14 @@ export default async function FacilitatorDetailPage({
   const { hari: hariParam, mode: modeParam } = await searchParams;
   const mode: "alltime" | "harian" = modeParam === "alltime" ? "alltime" : "harian";
 
-  // fetchAnalisisFromSheet (webhook Apps Script) TERUKUR 30+ detik sekali
-  // panggil (lihat catatan di lib/writeSheet.ts) - kalau `hari` sudah pasti
-  // dari URL (mode harian + hariParam ada, kasus PALING SERING: pindah hari
-  // lewat DaySelector), tidak perlu nunggu `history` selesai dulu buat tahu
-  // `hari` final - langsung tembak PARALEL bareng Promise.all di bawah,
-  // bukan sequential sesudahnya seperti sebelumnya (itu yang bikin ganti
-  // hari kerasa lama padahal cuma pindah baris di spreadsheet yang sama).
+  const session = await auth();
+  // @ts-expect-error accessToken ada di config JWT NextAuth kita
+  const accessToken = session?.accessToken;
+
+  // fetchAnalisisFromSheet (sekarang lewat REST API Sheets) TERUKUR cepat
+  // karena caching sheet metadata. Tapi tetap kita jalankan paralel.
   const eagerHari = mode === "harian" && hariParam ? parseInt(hariParam, 10) : null;
-  const eagerAnalisis = eagerHari != null ? fetchAnalisisFromSheet(kode, eagerHari) : null;
+  const eagerAnalisis = eagerHari != null ? fetchAnalisisFromSheet(kode, eagerHari, accessToken) : null;
 
   // v2: link LK Fasil pribadi & histori tab "Log" datang dari spreadsheet
   // controller (fetch async), beda dari v1 yang baca env var statis secara
@@ -93,7 +93,7 @@ export default async function FacilitatorDetailPage({
   // Pakai hasil eagerAnalisis (sudah jalan paralel di atas) kalau `hari`
   // final cocok dengan eagerHari - cuma fallback sequential kalau belum ada
   // (alltime, atau kunjungan pertama tanpa hariParam di URL).
-  const existingAnalisis = eagerHari === hari && eagerAnalisis ? await eagerAnalisis : await fetchAnalisisFromSheet(kode, hari);
+  const existingAnalisis = eagerHari === hari && eagerAnalisis ? await eagerAnalisis : await fetchAnalisisFromSheet(kode, hari, accessToken);
 
   const notes = buildNoteRanges(history, QUALITATIVE_FIELDS, (text) => text !== "Belum Diisi");
   const unfilled = buildNoteRanges(history, QUALITATIVE_FIELDS, (text) => text === "Belum Diisi");

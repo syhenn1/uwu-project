@@ -319,27 +319,29 @@ export function buildFacilitatorAnalysisMessages(
   const dokAdminTerverifikasi = Math.round(((latest.rataDokAdminTerverifikasi as number) ?? 0) / 100 * dokAdminTerunggah);
   const dokAdminSesuai = Math.round(((latest.rataDokAdminSesuai as number) ?? 0) / 100 * 220);
 
+  const formatPercent = (val: any) => typeof val === "number" ? parseFloat(val.toFixed(2)) : (val ?? 0);
+
   const promptData = {
     fasilitator: latest.namaFasil,
     kodeFasil: latest.kodeFasil,
     koordinator: latest.namaKoor,
     kodeKoor: latest.kodeKoor,
     hariKe: maxDay,
-    skorAkhir: latest.skorAkhir ?? null,
+    skorAkhir: formatPercent(latest.skorAkhir),
     progressPengisianLK: options?.targetHari && maxDay < options.targetHari 
       ? `Fasilitator baru mengisi LK sampai Hari ke-${maxDay} (padahal siklus berjalan saat ini sudah Hari ke-${options.targetHari}). Ini berarti fasilitator telat update data!` 
       : "Data Up-to-date",
     // Kita filter data persentase hanya yang esensial agar AI tidak salah ambil
     persentaseTerkini: {
-      "Sekolah Belum Login Aplikasi": `${latest.pctSekolahBelumLoginAplikasi ?? 0}%`,
-      "Sekolah Belum Punya Perencana": `${latest.pctTidakPunyaPerencanaLK ?? 0}%`,
-      "Sekolah Belum Sepakat RAB": `${latest.pctBelumSepakatRAB ?? 0}%`,
-      "Rata-rata Dok. Teknis Terunggah": `${latest.rataDokTeknisTerunggah ?? 0}%`,
-      "Rata-rata Dok. Teknis Terverifikasi": `${latest.rataDokTeknisTerverifikasi ?? 0}%`,
-      "Rata-rata Dok. Teknis Sesuai": `${latest.rataDokTeknisSesuai ?? 0}%`,
-      "Rata-rata Dok. Admin Terunggah": `${latest.rataDokAdminTerunggah ?? 0}%`,
-      "Rata-rata Dok. Admin Terverifikasi": `${latest.rataDokAdminTerverifikasi ?? 0}%`,
-      "Rata-rata Dok. Admin Sesuai": `${latest.rataDokAdminSesuai ?? 0}%`,
+      "Sekolah Belum Login Aplikasi": `${formatPercent(latest.pctSekolahBelumLoginAplikasi)}%`,
+      "Sekolah Belum Punya Perencana": `${formatPercent(latest.pctTidakPunyaPerencanaLK)}%`,
+      "Sekolah Belum Sepakat RAB": `${formatPercent(latest.pctBelumSepakatRAB)}%`,
+      "Rata-rata Dok. Teknis Terunggah": `${formatPercent(latest.rataDokTeknisTerunggah)}%`,
+      "Rata-rata Dok. Teknis Terverifikasi": `${formatPercent(latest.rataDokTeknisTerverifikasi)}%`,
+      "Rata-rata Dok. Teknis Sesuai": `${formatPercent(latest.rataDokTeknisSesuai)}%`,
+      "Rata-rata Dok. Admin Terunggah": `${formatPercent(latest.rataDokAdminTerunggah)}%`,
+      "Rata-rata Dok. Admin Terverifikasi": `${formatPercent(latest.rataDokAdminTerverifikasi)}%`,
+      "Rata-rata Dok. Admin Sesuai": `${formatPercent(latest.rataDokAdminSesuai)}%`,
     },
     // Hitungan absolut disiapkan agar AI tidak usah menghitung sendiri (karena AI sering halusinasi)
     angkaAbsolut: {

@@ -458,6 +458,9 @@ export function FacilitatorAnalysisWorkbench({
             </button>
           </div>
         </div>
+        <div className="flex gap-4">
+          <span className="text-xs font-bold text-red-500">Harap cek ulang hasil generate analisis, karena AI nya bisa ngawur cok!</span>
+        </div>
 
         <label className="flex items-center gap-2 text-xs text-ink-secondary" title='Buang seluruh checkpoint/persentase ber-sumber "Aplikasi Revit" (Login Aplikasi, Biodata, Dokumen Admin/Teknis, RAB) dari data yang dikirim ke AI - analisis jadi fokus ke checkpoint LK Fasil & catatan Kendala saja.'>
           <input

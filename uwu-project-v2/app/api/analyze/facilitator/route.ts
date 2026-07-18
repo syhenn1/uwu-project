@@ -5,6 +5,8 @@ import { detectFacilitatorAnomalies, fieldsWithFutureDataAnomaly } from "@uwu/co
 import { buildFacilitatorAnalysisMessages } from "@uwu/core/prompts";
 import { callLLM } from "@uwu/core/llm";
 
+export const maxDuration = 60; // Hindari timeout Vercel Hobby (max 60 detik) saat AI berpikir
+
 export async function POST(req: NextRequest) {
   try {
     const reqBody = await req.json();

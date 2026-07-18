@@ -27,6 +27,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // "Client Secret" yang dipakai Google Cloud Console.
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code",
+          scope: "openid profile email https://www.googleapis.com/auth/spreadsheets",
+        },
+      },
     }),
   ],
   session: { strategy: "jwt" },
@@ -42,6 +50,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return false;
       }
       return true;
+    },
+    async jwt({ token, account }) {
+      // Pada saat login pertama kali, object `account` akan tersedia.
+      // Kita ambil `access_token` nya dan simpan ke token JWT agar bisa dipakai baca/tulis sheets.
+      if (account) {
+        token.accessToken = account.access_token;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      // Overwrite/tambahkan property accessToken ke session yang dikonsumsi aplikasi
+      // (Bypass typescript check sementara karena Types default NextAuth tidak punya accessToken)
+      // @ts-expect-error
+      session.accessToken = token.accessToken;
+      return session;
     },
   },
 });
