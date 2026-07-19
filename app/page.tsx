@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getFacilRowsForSelectedAdmin, getTodayHari, isUsingSampleData } from "@/lib/sheet";
-import { getAvailableDays, getFacilitators, getRowsForDay, summarizeDay } from "@uwu/core/metrics";
+import { getAvailableDays, getFacilitators, getRowsForDay, summarizeDay, groupRowsByFacilitator, getCurrentRow } from "@uwu/core/metrics";
 import { getCheckpointCompliance, countNonCompliant } from "@uwu/core/compliance";
 import { scanAllAnomalies } from "@uwu/core/anomalies";
 import { countQualitativeActivityByDay } from "@uwu/core/notes";
@@ -26,7 +26,17 @@ export default async function DashboardPage({
   const todayHari = await getTodayHari();
 
   const hari = mode === "harian" ? (hariParam ? parseInt(hariParam, 10) : latestDay) : todayHari;
-  const dayRows = getRowsForDay(rows, hari);
+  
+  let dayRows: typeof rows;
+  if (mode === "alltime") {
+    const byFasil = groupRowsByFacilitator(rows);
+    dayRows = Array.from(byFasil.values())
+      .map((history) => getCurrentRow(history, todayHari))
+      .filter((r): r is typeof rows[0] => r !== undefined);
+  } else {
+    dayRows = getRowsForDay(rows, hari);
+  }
+
   const summary = summarizeDay(dayRows);
 
   const complianceCounts = new Map(

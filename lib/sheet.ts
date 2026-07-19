@@ -60,17 +60,18 @@ export async function getFacilRows(): Promise<FacilRow[]> {
 
   const rosterByName = new Map<string, RosterEntry>(rosterEntries.map((r) => [r.namaFasil, r]));
 
-  // Ambil baris TERBARU per fasilitator (Hari lalu Log tertinggi) - masterLog
-  // bisa punya >1 baris per fasilitator seiring waktu (satu per Hari/Log).
-  const latestByName = new Map<string, ParsedMasterLogRow>();
+  // Ambil data untuk SEMUA hari per fasilitator (kalau ada >1 Log di hari yang sama,
+  // pilih Log tertinggi). Dashboard butuh histori penuh untuk fitur "harian" (DaySelector).
+  const rowsByFasilAndDay = new Map<string, ParsedMasterLogRow>();
   for (const row of logRows) {
-    const prev = latestByName.get(row.namaFasil);
-    if (!prev || row.hari > prev.hari || (row.hari === prev.hari && row.logNumber > prev.logNumber)) {
-      latestByName.set(row.namaFasil, row);
+    const key = `${row.namaFasil}-${row.hari}`;
+    const prev = rowsByFasilAndDay.get(key);
+    if (!prev || row.logNumber > prev.logNumber) {
+      rowsByFasilAndDay.set(key, row);
     }
   }
 
-  const rows = [...latestByName.values()].map((row) => buildFacilRowFromMasterLog(row, rosterByName.get(row.namaFasil)));
+  const rows = [...rowsByFasilAndDay.values()].map((row) => buildFacilRowFromMasterLog(row, rosterByName.get(row.namaFasil)));
 
   facilRowsCache = { at: Date.now(), rows };
   return rows;
