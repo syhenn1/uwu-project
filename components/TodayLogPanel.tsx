@@ -11,8 +11,8 @@ const HEADER_GROUPS = groupSkorAkhirColumns();
 function formatPercentDisplay(raw: string): string {
   const match = raw.match(/^(-?\d+(?:\.\d+)?)%$/);
   if (!match) return raw;
-  const rounded = Math.round(parseFloat(match[1]) * 100) / 100;
-  return `${rounded}%`;
+  const num = parseFloat(match[1]);
+  return Number.isInteger(num) ? `${num}%` : `${num.toFixed(2)}%`;
 }
 
 function LogRow({ label, fullLabel, row }: { label: string; fullLabel: string; row: FacilRow | null }) {
@@ -45,7 +45,7 @@ function LogRow({ label, fullLabel, row }: { label: string; fullLabel: string; r
         title="Nilai Akhir"
         className={`overflow-hidden text-ellipsis whitespace-nowrap border-l border-border/60 px-1 py-2 text-center text-xs ${skorAkhirColorClass(row.skorAkhir)}`}
       >
-        {typeof row.skorAkhir === "number" ? `${Math.round(row.skorAkhir * 100) / 100}%` : "-"}
+        {typeof row.skorAkhir === "number" ? (Number.isInteger(row.skorAkhir) ? `${row.skorAkhir}%` : `${row.skorAkhir.toFixed(2)}%`) : "-"}
       </td>
     </tr>
   );

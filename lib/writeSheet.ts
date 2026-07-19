@@ -76,7 +76,7 @@ export async function fetchAnalisisFromSheet(kodeFasil: string, hari: number, ac
       }
     }
   } catch (err) {
-    console.warn(`[writeSheet] fetchAnalisisFromSheet error:`, err);
+    console.warn(`[writeSheet] fetchAnalisisFromSheet error: ${err instanceof Error ? err.message : String(err)}`);
   }
   return null;
 }

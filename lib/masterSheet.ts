@@ -65,6 +65,7 @@ export interface RosterEntry {
 }
 
 let rosterCache: { at: number; entries: RosterEntry[] } | null = null;
+let rosterPromise: Promise<RosterEntry[]> | null = null;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 /** Daftar semua fasilitator (roster) dari tab "Fasilitator" - [] kalau
@@ -74,32 +75,41 @@ export async function getRosterEntries(): Promise<RosterEntry[]> {
   const url = process.env.CONTROLLER_SHEET_URL;
   if (!url) return [];
   if (rosterCache && Date.now() - rosterCache.at < CACHE_TTL_MS) return rosterCache.entries;
+  if (rosterPromise) return rosterPromise;
 
-  const spreadsheetId = extractSpreadsheetId(url);
-  if (!spreadsheetId) return [];
+  rosterPromise = (async () => {
+    try {
+      const spreadsheetId = extractSpreadsheetId(url);
+      if (!spreadsheetId) return [];
 
-  const csv = await fetchCsv(gvizCsvUrl(spreadsheetId, ROSTER_SHEET_NAME));
-  if (!csv) {
-    console.warn(`[masterSheet] Tab "${ROSTER_SHEET_NAME}" tidak bisa diakses - pastikan master spreadsheet sudah di-share "Anyone with the link".`);
-    return rosterCache?.entries ?? [];
-  }
+      const csv = await fetchCsv(gvizCsvUrl(spreadsheetId, ROSTER_SHEET_NAME));
+      if (!csv) {
+        console.warn(`[masterSheet] Tab "${ROSTER_SHEET_NAME}" tidak bisa diakses - pastikan master spreadsheet sudah di-share "Anyone with the link".`);
+        return rosterCache?.entries ?? [];
+      }
 
-  const parsed = Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true });
-  const entries: RosterEntry[] = [];
-  for (const row of parsed.data) {
-    const kodeFasil = (row["Kode Fasil"] ?? "").trim();
-    const namaFasil = (row["Nama Fasil"] ?? "").trim();
-    if (!kodeFasil || !namaFasil) continue;
-    const kendala: Partial<Record<keyof FacilRow, string>> = {};
-    for (const k of KENDALA_COLUMNS) {
-      const value = (row[k.header] ?? "").trim();
-      if (value) kendala[k.kolom] = value;
+      const parsed = Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true });
+      const entries: RosterEntry[] = [];
+      for (const row of parsed.data) {
+        const kodeFasil = (row["Kode Fasil"] ?? "").trim();
+        const namaFasil = (row["Nama Fasil"] ?? "").trim();
+        if (!kodeFasil || !namaFasil) continue;
+        const kendala: Partial<Record<keyof FacilRow, string>> = {};
+        for (const k of KENDALA_COLUMNS) {
+          const value = (row[k.header] ?? "").trim();
+          if (value) kendala[k.kolom] = value;
+        }
+        entries.push({ atmin: (row["Atmin"] ?? "").trim(), kodeFasil, namaFasil, kendala });
+      }
+
+      rosterCache = { at: Date.now(), entries };
+      return entries;
+    } finally {
+      rosterPromise = null;
     }
-    entries.push({ atmin: (row["Atmin"] ?? "").trim(), kodeFasil, namaFasil, kendala });
-  }
+  })();
 
-  rosterCache = { at: Date.now(), entries };
-  return entries;
+  return rosterPromise;
 }
 
 // --- Tab "masterLog" (skor per fasilitator, per Hari/Log) ------------------
@@ -121,6 +131,7 @@ export interface ParsedMasterLogRow {
 }
 
 let masterLogCache: { at: number; rows: ParsedMasterLogRow[] } | null = null;
+let masterLogPromise: Promise<ParsedMasterLogRow[]> | null = null;
 
 /** Parse satu baris data tab "masterLog" (array kolom mentah, header:false) -
  * layout DIKONFIRMASI 2026-07-18: [Tanggal, Log ke-, Hari ke-, Nama Fasil,
@@ -152,25 +163,34 @@ export async function getMasterLogRows(): Promise<ParsedMasterLogRow[]> {
   const url = process.env.CONTROLLER_SHEET_URL;
   if (!url) return [];
   if (masterLogCache && Date.now() - masterLogCache.at < CACHE_TTL_MS) return masterLogCache.rows;
+  if (masterLogPromise) return masterLogPromise;
 
-  const spreadsheetId = extractSpreadsheetId(url);
-  if (!spreadsheetId) return [];
+  masterLogPromise = (async () => {
+    try {
+      const spreadsheetId = extractSpreadsheetId(url);
+      if (!spreadsheetId) return [];
 
-  const csv = await fetchCsv(gvizCsvUrl(spreadsheetId, MASTER_LOG_SHEET_NAME));
-  if (!csv) {
-    console.warn(`[masterSheet] Tab "${MASTER_LOG_SHEET_NAME}" tidak bisa diakses - pastikan master spreadsheet sudah di-share "Anyone with the link".`);
-    return masterLogCache?.rows ?? [];
-  }
+      const csv = await fetchCsv(gvizCsvUrl(spreadsheetId, MASTER_LOG_SHEET_NAME));
+      if (!csv) {
+        console.warn(`[masterSheet] Tab "${MASTER_LOG_SHEET_NAME}" tidak bisa diakses - pastikan master spreadsheet sudah di-share "Anyone with the link".`);
+        return masterLogCache?.rows ?? [];
+      }
 
-  const parsed = Papa.parse<string[]>(csv, { header: false, skipEmptyLines: false });
-  const rows: ParsedMasterLogRow[] = [];
-  for (const cols of parsed.data) {
-    const row = parseMasterLogRow(cols);
-    if (row) rows.push(row);
-  }
+      const parsed = Papa.parse<string[]>(csv, { header: false, skipEmptyLines: false });
+      const rows: ParsedMasterLogRow[] = [];
+      for (const cols of parsed.data) {
+        const row = parseMasterLogRow(cols);
+        if (row) rows.push(row);
+      }
 
-  masterLogCache = { at: Date.now(), rows };
-  return rows;
+      masterLogCache = { at: Date.now(), rows };
+      return rows;
+    } finally {
+      masterLogPromise = null;
+    }
+  })();
+
+  return masterLogPromise;
 }
 
 // --- Gabungkan roster + masterLog jadi satu FacilRow ------------------------

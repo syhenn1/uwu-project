@@ -14,6 +14,13 @@ const SORT_OPTIONS: Array<{ key: SortKey; label: string }> = [
   { key: "koordinator", label: "Koordinator (A-Z)" },
 ];
 
+function formatPercentDisplay(raw: string): string {
+  const match = raw.match(/^(-?\d+(?:\.\d+)?)%$/);
+  if (!match) return raw;
+  const num = parseFloat(match[1]);
+  return Number.isInteger(num) ? `${num}%` : `${num.toFixed(2)}%`;
+}
+
 export function AllFasilRawMatriksTable({ rows }: { rows: FacilRow[] }) {
   const [sortKey, setSortKey] = useState<SortKey>("skorAkhir");
   const [asc, setAsc] = useState(false);
@@ -147,7 +154,7 @@ export function AllFasilRawMatriksTable({ rows }: { rows: FacilRow[] }) {
               return (
                 <tr key={rowIdx} className="transition-colors hover:bg-background/40">
                   <td className={`sticky left-0 z-10 whitespace-nowrap px-2 py-1 text-center shadow-[1px_0_0_0_var(--tw-shadow-color)] shadow-border bg-surface/95 backdrop-blur-sm ${skorColor}`}>
-                    {row.skorAkhir != null ? `${row.skorAkhir}%` : "-"}
+                    {row.skorAkhir != null ? (Number.isInteger(row.skorAkhir) ? `${row.skorAkhir}%` : `${row.skorAkhir.toFixed(2)}%`) : "-"}
                   </td>
                   <td className="sticky left-[64px] z-10 whitespace-normal bg-surface/95 px-2 py-1 font-medium backdrop-blur-sm shadow-[1px_0_0_0_var(--tw-shadow-color)] shadow-border">
                     <div className="flex flex-col">
@@ -165,7 +172,7 @@ export function AllFasilRawMatriksTable({ rows }: { rows: FacilRow[] }) {
                     const rawValue = row.raw[col.header] ?? "-";
                     return (
                       <td key={idx} className={`whitespace-nowrap px-1.5 py-1 text-center ${percentCellColorClass(rawValue)}`}>
-                        {rawValue}
+                        {formatPercentDisplay(rawValue)}
                       </td>
                     );
                   })}

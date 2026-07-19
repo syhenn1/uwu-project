@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { FacilRow } from "@uwu/core/types";
-import { QUALITATIVE_FIELDS } from "@uwu/core/notes";
+import { QUALITATIVE_FIELDS, type NoteRange } from "@uwu/core/notes";
 import { KEY_TO_HEADER } from "@uwu/core/columns";
 import { KENDALA_ACTIVE_FROM_DAY, classifyKendalaText } from "@uwu/core/compliance";
 import type { CheckpointCompliance } from "@uwu/core/compliance";
@@ -245,11 +245,15 @@ export function FacilKendalaPanel({
   history,
   compliance,
   hari,
+  notes,
+  unfilled,
 }: {
   row: FacilRow;
   history: FacilRow[];
   compliance: CheckpointCompliance[];
   hari: number;
+  notes?: NoteRange[];
+  unfilled?: NoteRange[];
 }) {
   const [firstField, ...restFields] = KENDALA_FIELDS;
 
@@ -279,7 +283,7 @@ export function FacilKendalaPanel({
   const mengundurkanDiriCount = typeof mengundurkanDiriRaw === "string" ? parseInt(mengundurkanDiriRaw, 10) : typeof mengundurkanDiriRaw === "number" ? mengundurkanDiriRaw : 0;
 
   return (
-    <div className="flex h-full flex-col rounded-xl border border-border bg-surface shadow-sm">
+    <div className="flex h-full min-h-0 flex-col rounded-xl border border-border bg-surface shadow-sm">
       <div className="flex shrink-0 flex-col gap-2 border-b border-gridline px-4 py-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-ink-primary">Catatan Kendala Fasil (Hari ke-{hari})</h3>
@@ -296,18 +300,48 @@ export function FacilKendalaPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
-        {/* Grid 3 kolom - baris pertama sengaja cuma diisi 1 field Kendala,
-         * sisa 2 slot (tengah-atas, kanan-atas) diisi kartu Progres Dokumen
-         * Admin/Teknis (pindahan dari kolom kiri halaman) supaya tidak ada
-         * ruang kosong. Field Kendala sisanya (9 field) otomatis mengalir 3
-         * per baris di bawahnya. auto-rows-fr + h-full field/textarea supaya
-         * seluruh tinggi kartu terisi rata, tidak ada ruang kosong di bawah. */}
-        <div className="grid h-full grid-cols-1 auto-rows-fr gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 auto-rows-fr gap-2 2xl:grid-cols-3">
           {renderField(firstField)}
           <FacilDocumentFunnel row={row} kategori="Admin" />
           <FacilDocumentFunnel row={row} kategori="Teknis" />
           {restFields.map(renderField)}
         </div>
+
+        {((notes && notes.length > 0) || (unfilled && unfilled.length > 0)) && (
+          <div className="mt-4 flex flex-col gap-3 border-t border-gridline px-1 pt-3">
+            {notes && notes.length > 0 && (
+              <div>
+                <h4 className="mb-2 text-xs font-semibold text-ink-primary">Riwayat Catatan Kualitatif</h4>
+                <ul className="grid grid-cols-2 gap-1.5 2xl:grid-cols-3">
+                  {notes.map((n, i) => (
+                    <li key={i} className="rounded-md border border-border bg-background p-2 text-xs shadow-sm">
+                      <span className="mr-1.5 rounded bg-surface-hover px-1 py-0.5 text-[10px] text-ink-muted">
+                        {n.hariStart === n.hariEnd ? `Hari ${n.hariStart}` : `Hari ${n.hariStart}-${n.hariEnd}`}
+                      </span>
+                      <span className="font-medium text-ink-secondary">{n.label}:</span> <span className="text-ink-primary">{n.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {unfilled && unfilled.length > 0 && (
+              <div>
+                <h4 className="mb-2 text-xs font-semibold text-ink-primary">Kendala Belum Diisi Fasilitator</h4>
+                <ul className="grid grid-cols-2 gap-1 2xl:grid-cols-3">
+                  {unfilled.map((n, i) => (
+                    <li key={i} className="rounded-md border border-border bg-background px-2 py-1.5 text-[11px] text-ink-muted shadow-sm">
+                      <span className="mr-1.5 rounded bg-surface-hover px-1 py-0.5">
+                        {n.hariStart === n.hariEnd ? `Hari ${n.hariStart}` : `Hari ${n.hariStart}-${n.hariEnd}`}
+                      </span>
+                      {n.label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -442,7 +476,7 @@ export function FacilitatorAnalysisWorkbench({
   }
 
   return (
-    <div className="flex max-h-full flex-col gap-4 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+    <div className="flex max-h-full min-h-0 flex-col gap-4 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
       {/* Bagian Navigasi */}
       <div className="flex shrink-0 items-center justify-between gap-2 px-1 text-xs">
         {prevFacilitator ? (

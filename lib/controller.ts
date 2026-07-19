@@ -50,6 +50,7 @@ function parseSheetIdAndGid(url: string): { spreadsheetId: string; gid: string }
 }
 
 let cache: { at: number; entries: ControllerFacilitatorEntry[] } | null = null;
+let fetchPromise: Promise<ControllerFacilitatorEntry[]> | null = null;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 /** Daftar semua fasilitator dari tab "Fasilitator" spreadsheet controller.
@@ -63,50 +64,59 @@ export async function getControllerEntries(): Promise<ControllerFacilitatorEntry
   if (!url) return [];
 
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.entries;
+  if (fetchPromise) return fetchPromise;
 
-  let res: Response;
-  try {
-    res = await fetch(normalizeSheetUrl(url), { next: { revalidate: 300 } });
-  } catch (err) {
-    console.warn(`[controller] Gagal terhubung ke spreadsheet controller: ${err instanceof Error ? err.message : "unknown"}`);
-    return cache?.entries ?? [];
-  }
-  if (!res.ok) {
-    console.warn(`[controller] Spreadsheet controller tidak bisa diakses (HTTP ${res.status}) - pastikan sudah di-share "Anyone with the link".`);
-    return cache?.entries ?? [];
-  }
+  fetchPromise = (async () => {
+    try {
+      let res: Response;
+      try {
+        res = await fetch(normalizeSheetUrl(url), { next: { revalidate: 300 } });
+      } catch (err) {
+        console.warn(`[controller] Gagal terhubung ke spreadsheet controller: ${err instanceof Error ? err.message : "unknown"}`);
+        return cache?.entries ?? [];
+      }
+      if (!res.ok) {
+        console.warn(`[controller] Spreadsheet controller tidak bisa diakses (HTTP ${res.status}) - pastikan sudah di-share "Anyone with the link".`);
+        return cache?.entries ?? [];
+      }
 
-  const rawCsv = await res.text();
-  const lines = rawCsv.split(/\r\n|\n/);
-  const headerIdx = lines.findIndex((l) => l.includes(FASILITATOR_HEADER_ANCHOR) || l.includes('Atmin,Kode Fasil,Nama Fasil'));
-  if (headerIdx === -1) {
-    console.warn('[controller] Baris header ("Atmin, Kode Fasil, Nama Fasil, ... LK Log") tidak ditemukan di tab "Daftar Fasilitator".');
-    return cache?.entries ?? [];
-  }
-  const csv = lines.slice(headerIdx).join("\n");
-  const parsed = Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true });
+      const rawCsv = await res.text();
+      const lines = rawCsv.split(/\r\n|\n/);
+      const headerIdx = lines.findIndex((l) => l.includes(FASILITATOR_HEADER_ANCHOR) || l.includes('Atmin,Kode Fasil,Nama Fasil'));
+      if (headerIdx === -1) {
+        console.warn('[controller] Baris header ("Atmin, Kode Fasil, Nama Fasil, ... LK Log") tidak ditemukan di tab "Daftar Fasilitator".');
+        return cache?.entries ?? [];
+      }
+      const csv = lines.slice(headerIdx).join("\n");
+      const parsed = Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true });
 
-  const entries: ControllerFacilitatorEntry[] = [];
-  for (const row of parsed.data) {
-    const kodeFasil = (row["Kode Fasil"] ?? "").trim();
-    const tautan = (row["LK Log"] ?? row["Tautan"] ?? "").trim();
-    if (!kodeFasil || !tautan) continue;
-    const parsedUrl = parseSheetIdAndGid(tautan);
-    if (!parsedUrl) {
-      console.warn(`[controller] "LK Log" untuk ${kodeFasil} bukan URL spreadsheet Google yang valid: "${tautan}".`);
-      continue;
+      const entries: ControllerFacilitatorEntry[] = [];
+      for (const row of parsed.data) {
+        const kodeFasil = (row["Kode Fasil"] ?? "").trim();
+        const tautan = (row["LK Log"] ?? row["Tautan"] ?? "").trim();
+        if (!kodeFasil || !tautan) continue;
+        const parsedUrl = parseSheetIdAndGid(tautan);
+        if (!parsedUrl) {
+          console.warn(`[controller] "LK Log" untuk ${kodeFasil} bukan URL spreadsheet Google yang valid: "${tautan}".`);
+          continue;
+        }
+        entries.push({
+          atmin: (row["Atmin"] ?? "").trim(),
+          kodeFasil,
+          namaFasil: (row["Nama Fasil"] ?? "").trim(),
+          spreadsheetId: parsedUrl.spreadsheetId,
+          gid: parsedUrl.gid,
+        });
+      }
+
+      cache = { at: Date.now(), entries };
+      return entries;
+    } finally {
+      fetchPromise = null;
     }
-    entries.push({
-      atmin: (row["Atmin"] ?? "").trim(),
-      kodeFasil,
-      namaFasil: (row["Nama Fasil"] ?? "").trim(),
-      spreadsheetId: parsedUrl.spreadsheetId,
-      gid: parsedUrl.gid,
-    });
-  }
+  })();
 
-  cache = { at: Date.now(), entries };
-  return entries;
+  return fetchPromise;
 }
 
 export async function getControllerEntry(kodeFasil: string): Promise<ControllerFacilitatorEntry | null> {

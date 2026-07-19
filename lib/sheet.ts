@@ -43,38 +43,48 @@ export function isUsingSampleData(): boolean {
  * tidak pernah kosong total.
  */
 let facilRowsCache: { at: number; rows: FacilRow[] } | null = null;
+let facilRowsPromise: Promise<FacilRow[]> | null = null;
 const FACIL_CACHE_TTL_MS = 5 * 60 * 1000;
 
 export async function getFacilRows(): Promise<FacilRow[]> {
   if (facilRowsCache && Date.now() - facilRowsCache.at < FACIL_CACHE_TTL_MS) {
     return facilRowsCache.rows;
   }
+  if (facilRowsPromise) return facilRowsPromise;
 
-  if (!isControllerConfigured()) return loadSampleRows();
+  facilRowsPromise = (async () => {
+    try {
+      if (!isControllerConfigured()) return await loadSampleRows();
 
-  const [rosterEntries, logRows] = await Promise.all([getRosterEntries(), getMasterLogRows()]);
-  if (logRows.length === 0) {
-    console.warn('[sheet] Tab "masterLog" tidak mengembalikan baris apa pun - masih memakai data contoh.');
-    return loadSampleRows();
-  }
+      const [rosterEntries, logRows] = await Promise.all([getRosterEntries(), getMasterLogRows()]);
+      if (logRows.length === 0) {
+        console.warn('[sheet] Tab "masterLog" tidak mengembalikan baris apa pun - masih memakai data contoh.');
+        return await loadSampleRows();
+      }
 
-  const rosterByName = new Map<string, RosterEntry>(rosterEntries.map((r) => [r.namaFasil, r]));
+      const rosterByName = new Map<string, RosterEntry>(rosterEntries.map((r) => [r.namaFasil, r]));
 
-  // Ambil data untuk SEMUA hari per fasilitator (kalau ada >1 Log di hari yang sama,
-  // pilih Log tertinggi). Dashboard butuh histori penuh untuk fitur "harian" (DaySelector).
-  const rowsByFasilAndDay = new Map<string, ParsedMasterLogRow>();
-  for (const row of logRows) {
-    const key = `${row.namaFasil}-${row.hari}`;
-    const prev = rowsByFasilAndDay.get(key);
-    if (!prev || row.logNumber > prev.logNumber) {
-      rowsByFasilAndDay.set(key, row);
+      // Ambil data untuk SEMUA hari per fasilitator (kalau ada >1 Log di hari yang sama,
+      // pilih Log tertinggi). Dashboard butuh histori penuh untuk fitur "harian" (DaySelector).
+      const rowsByFasilAndDay = new Map<string, ParsedMasterLogRow>();
+      for (const row of logRows) {
+        const key = `${row.namaFasil}-${row.hari}`;
+        const prev = rowsByFasilAndDay.get(key);
+        if (!prev || row.logNumber > prev.logNumber) {
+          rowsByFasilAndDay.set(key, row);
+        }
+      }
+
+      const rows = [...rowsByFasilAndDay.values()].map((row) => buildFacilRowFromMasterLog(row, rosterByName.get(row.namaFasil)));
+
+      facilRowsCache = { at: Date.now(), rows };
+      return rows;
+    } finally {
+      facilRowsPromise = null;
     }
-  }
+  })();
 
-  const rows = [...rowsByFasilAndDay.values()].map((row) => buildFacilRowFromMasterLog(row, rosterByName.get(row.namaFasil)));
-
-  facilRowsCache = { at: Date.now(), rows };
-  return rows;
+  return facilRowsPromise;
 }
 
 /**
