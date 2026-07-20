@@ -85,25 +85,6 @@ function lastActiveCommunicationDay(history: FacilRow[], beforeDay: number): num
   return null;
 }
 
-/** Cari hari paling awal dari rentang hari berturut-turut (berakhir di `hari`)
- * yang nilai kolom `key`-nya identik dengan `rawText` - dipakai supaya kendala
- * yang tidak berubah berhari-hari kelihatan "sejak Hari X", bukan seolah baru
- * dilaporkan hari ini. Berhenti begitu ketemu hari dengan nilai beda ATAU baris
- * hari itu tidak ada di histori. */
-function streakStartDay(history: FacilRow[], key: keyof FacilRow, hari: number, rawText: string): number {
-  const byHari = new Map(history.map((r) => [r.hari, r]));
-  let start = hari;
-  for (let h = hari - 1; h >= 1; h--) {
-    const row = byHari.get(h);
-    if (!row) break;
-    const raw = row[key];
-    const text = typeof raw === "string" ? raw.trim() : "";
-    if (text !== rawText) break;
-    start = h;
-  }
-  return start;
-}
-
 /**
  * Kolom Kendala kosong TIDAK otomatis berarti "belum diisi" - itu cuma
  * masalah (state "belum-diisi") kalau selnya literal "Belum Diisi" DAN
@@ -115,11 +96,14 @@ function streakStartDay(history: FacilRow[], key: keyof FacilRow, hari: number, 
  * classifyKendalaText yang sama dengan lib/compliance.ts (isIssue) supaya
  * definisi "ini laporan masalah beneran" konsisten satu sumber.
  *
- * Kalau nilai sel (mentah, sebelum diklasifikasi) sama persis selama >1 hari
- * berturut-turut sampai `hari`, teksnya dikasih akhiran "(sejak Hari X)" -
- * berlaku untuk teks kendala asli MAUPUN "Belum Diisi" (biar kelihatan sudah
- * berapa lama belum ditanggapi), tapi tidak untuk sel yang kosong beneran
- * (tidak ada narasi "sejak" yang berarti buat itu).
+ * TIDAK ADA lagi akhiran "(sejak Hari X)" (dulu ada di sini, dihitung dari
+ * streak "teksnya identik berhari-hari mundur") - DIKONFIRMASI 2026-07-20
+ * oleh program owner: tab "masterLog" itu MENGOVERWRITE kendala sebelumnya
+ * dengan yang sedang aktif (bukan nambah baris baru per hari), jadi baris
+ * "Hari X" yang lama TIDAK bisa dipercaya sebagai tangkapan asli hari itu -
+ * "streak" yang kelihatan sebenarnya bisa cuma efek overwrite, bukan bukti
+ * kendala beneran belum berubah sekian hari. Jangan hitung ulang ini tanpa
+ * sumber histori yang benar-benar append-only.
  */
 function kendalaDisplayBase(row: FacilRow, history: FacilRow[], key: keyof FacilRow, hari: number): KendalaDisplay {
   const raw = row[key];
@@ -131,9 +115,6 @@ function kendalaDisplayBase(row: FacilRow, history: FacilRow[], key: keyof Facil
     return { text: `(belum jatuh tempo - checkpoint terkait mulai Hari ${activeFromDay})`, state: "netral", isPlaceholder: true, statusNote: null };
   }
 
-  const since = rawText !== "" ? streakStartDay(history, key, hari, rawText) : hari;
-  const sinceSuffix = since < hari ? ` (sejak Hari ${since})` : "";
-
   // Pisahkan pesan status otomatis ("Belum diisi status komunikasi ...
   // sekolah") keluar dari teks yang dievaluasi sebagai kendala - lihat
   // extractStatusKomunikasiNote. Sisa teks (kalau ada) diperlakukan seperti
@@ -143,9 +124,9 @@ function kendalaDisplayBase(row: FacilRow, history: FacilRow[], key: keyof Facil
   if (key === "kendalaKomunikasi") {
     const extracted = extractStatusKomunikasiNote(rawText);
     if (extracted.note) {
-      const lastActive = lastActiveCommunicationDay(history, since);
+      const lastActive = lastActiveCommunicationDay(history, hari);
       const lastActiveNote = lastActive != null ? `terakhir kali melapor komunikasi: Hari ${lastActive}` : "belum pernah melapor komunikasi di histori yang tersedia";
-      statusNote = `${extracted.note}${sinceSuffix} - ${lastActiveNote}`;
+      statusNote = `${extracted.note} - ${lastActiveNote}`;
       text = extracted.rest;
     }
   }
@@ -157,15 +138,15 @@ function kendalaDisplayBase(row: FacilRow, history: FacilRow[], key: keyof Facil
     // persis) adalah info asli dari sheet - jangan ditimpa.
     const isLiteralSentinel = text === "Belum Diisi";
     const displayText = isLiteralSentinel ? "(belum diisi fasilitator, padahal checkpoint sudah jatuh tempo)" : text;
-    return { text: `${displayText}${sinceSuffix}`, state: "belum-diisi", isPlaceholder: isLiteralSentinel, statusNote };
+    return { text: displayText, state: "belum-diisi", isPlaceholder: isLiteralSentinel, statusNote };
   }
   if (kendalaState === "kosong") {
     return { text: "(tidak ada kendala / aman)", state: "aman", isPlaceholder: true, statusNote };
   }
   if (kendalaState === "tidak-ada-kendala") {
-    return { text: `${text}${sinceSuffix}`, state: "aman", isPlaceholder: false, statusNote };
+    return { text, state: "aman", isPlaceholder: false, statusNote };
   }
-  return { text: `${text}${sinceSuffix}`, state: "ada-kendala", isPlaceholder: false, statusNote };
+  return { text, state: "ada-kendala", isPlaceholder: false, statusNote };
 }
 
 const KENDALA_STATE_CONTAINER: Record<KendalaState, string> = {
