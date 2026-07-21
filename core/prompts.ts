@@ -529,6 +529,16 @@ function absFromPct(v: FacilRow[keyof FacilRow], total: number): number {
   return Math.round((numOrZero(v) / 100) * total);
 }
 
+/** Persentase "sudah" dari kolom sumber yang berupa persentase "belum" -
+ * DIHITUNG DI KODE (bukan diserahkan ke LLM), karena LLM eksternal (Gemini
+ * dkk) terbukti kadang salah membalik arah persen ini sendiri (mis. melabeli
+ * ulang angka "belum" sebagai "sudah" tanpa benar-benar menghitung 100-x,
+ * menghasilkan narasi yang kontradiktif dengan jumlah sekolah "belum" yang
+ * disebut di kalimat yang sama). */
+function invertPct(v: FacilRow[keyof FacilRow]): number {
+  return parseFloat((100 - numOrZero(v)).toFixed(2));
+}
+
 function kendalaTextOrEmpty(v: FacilRow[keyof FacilRow]): string {
   if (typeof v !== "string") return "";
   const trimmed = v.trim();
@@ -670,11 +680,13 @@ export function buildFacilitatorCopyPromptText(row: FacilRow, hari: number): str
       totalSekolah: TOTAL_SEKOLAH,
       belumLoginPersen: numOrZero(row.pctSekolahBelumLoginAplikasi),
       belumLoginJumlah: absFromPct(row.pctSekolahBelumLoginAplikasi, TOTAL_SEKOLAH),
+      sudahLoginPersen: invertPct(row.pctSekolahBelumLoginAplikasi),
     },
     perencana: {
       totalSekolah: TOTAL_SEKOLAH,
       belumPunyaPersen: numOrZero(row.pctTidakPunyaPerencanaLK),
       belumPunyaJumlah: absFromPct(row.pctTidakPunyaPerencanaLK, TOTAL_SEKOLAH),
+      sudahPunyaPersen: invertPct(row.pctTidakPunyaPerencanaLK),
       kendala: kendalaTextOrEmpty(row.kendalaMendapatkanPerencana),
     },
     dokumenTeknis: {
@@ -706,6 +718,7 @@ export function buildFacilitatorCopyPromptText(row: FacilRow, hari: number): str
         totalSekolah: TOTAL_SEKOLAH,
         belumTerverifikasiPersen: numOrZero(row.pctBiodataBelumTerverifikasi),
         belumTerverifikasiJumlah: absFromPct(row.pctBiodataBelumTerverifikasi, TOTAL_SEKOLAH),
+        sudahTerverifikasiPersen: invertPct(row.pctBiodataBelumTerverifikasi),
         kendala: kendalaTextOrEmpty(row.kendalaVerifikasiBiodata),
       },
       dapodik: {
@@ -735,6 +748,7 @@ ATURAN WAJIB:
 3. PENTING - BEDA DARI KEBIASAAN UMUM: WAJIB SEBUTKAN SEMUA 8 kategori itu WALAUPUN capaiannya sudah 100%/sempurna - JANGAN pernah dilewati/di-skip. Kalau sudah 100%, tulis dengan nada positif (contoh: "seluruhnya sudah terverifikasi oleh fasil"), JANGAN dihilangkan dari hasil.
 4. Kalau ada kolom "kendala..." yang isinya bukan string kosong di data, sertakan isinya apa adanya sebagai kalimat kendala di paragraf terkait. Kalau kosong, tulis kalimat seperti pada contoh ("Kendala terkait ... tidak teridentifikasi karena fasil tidak mengisi informasi terkait hal ini di LK Fasil").
 5. Kalau ada ketimpangan besar antara satu tahap dan tahap berikutnya dalam kategori yang sama (mis. banyak yang terunggah tapi sedikit yang terverifikasi, atau banyak yang terverifikasi tapi sedikit yang "Sesuai"), sertakan juga angka selisihnya secara eksplisit di kalimatnya.
+5b. Untuk kalimat yang menyebut persentase "sudah" sebagai pasangan dari angka "belum" (mis. "Sekolah login aplikasi", "Perencana", dan "Biodata" di Catatan lain - lihat contoh referensi yang selalu menutup dengan "(X% sekolah ... sudah ...)"), WAJIB pakai field "sudahLoginPersen"/"sudahPunyaPersen"/"sudahTerverifikasiPersen" APA ADANYA dari data JSON - JANGAN menghitung sendiri (100 - persen belum), itu rawan salah/terbalik. Field-field ini SUDAH dihitung benar oleh sistem, tinggal disalin.
 6. WAJIB tutup dengan bagian "Catatan lain:" (judul PERSIS begitu, tanpa paragraf lain di atasnya dulu) berisi baris-baris singkat (BUKAN paragraf panjang seperti kategori di atas) untuk checkpoint yang belum dibahas di kategori manapun di atas: Biodata (field catatanLain.biodata), Dapodik (field catatanLain.dapodik), Sekolah Mengundurkan Diri (HANYA JIKA field catatanLain.mengundurkanDiri > 0), dan HANYA kalau field catatanLain.komunikasi/panlakFormat/rab menunjukkan ada masalah nyata (persennya jauh dari sempurna ATAU field kendala-nya berisi laporan masalah) - kalau field itu kosong/sempurna, JANGAN disebut sama sekali di "Catatan lain" (beda dari 8 kategori wajib di poin 2-3 yang harus selalu disebut).
 7. Data dari field "kendala..." yang kosong ("") berarti memang belum ada catatan dari fasilitator - JANGAN mengarang kendala yang tidak ada di data.
 8. Tulis paragraf mengalir natural (bukan bullet point/list), Bahasa Indonesia, TANPA judul tebal markdown di depan tiap paragraf (label kategori seperti "Perencana:" cukup teks biasa, bukan **Perencana:**).
