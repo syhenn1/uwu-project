@@ -182,17 +182,13 @@ async function callOpenAI(messages: ChatMessage[], opts?: CallOpts, overrideApiK
 
 /** Urutan fallback: coba provider pertama yang env var-nya diisi; kalau gagal
  * (kuota habis, rate limit, error apapun), lanjut ke provider berikutnya yang
- * dikonfigurasi. Empat yang pertama punya tingkatan/model gratis - HF Inference
- * Providers, Google AI Studio (Gemini), Groq, dan OpenRouter (model ":free",
- * termasuk Llama). OpenAI ditaruh PALING AKHIR karena berbayar (tidak ada
- * tingkatan gratis) - dipakai sebagai cadangan terakhir kalau semua provider
- * gratis di atas gagal/habis kuota. */
+ * dikonfigurasi. */
 const PROVIDERS: Provider[] = [
-  { name: "Hugging Face", envVar: "HF_TOKEN", configured: () => !!process.env.HF_TOKEN, call: callHuggingFace },
-  { name: "Google Gemini", envVar: "GEMINI_API_KEY", configured: () => !!process.env.GEMINI_API_KEY, call: callGemini },
-  { name: "Groq", envVar: "GROQ_API_KEY", configured: () => !!process.env.GROQ_API_KEY, call: callGroq },
   { name: "OpenRouter", envVar: "OPENROUTER_API_KEY", configured: () => !!process.env.OPENROUTER_API_KEY, call: callOpenRouter },
   { name: "OpenAI", envVar: "OPENAI_API_KEY", configured: () => !!process.env.OPENAI_API_KEY, call: callOpenAI },
+  { name: "Groq", envVar: "GROQ_API_KEY", configured: () => !!process.env.GROQ_API_KEY, call: callGroq },
+  { name: "Google Gemini", envVar: "GEMINI_API_KEY", configured: () => !!process.env.GEMINI_API_KEY, call: callGemini },
+  { name: "Hugging Face", envVar: "HF_TOKEN", configured: () => !!process.env.HF_TOKEN, call: callHuggingFace },
 ];
 
 export function isAnyProviderConfigured(): boolean {
