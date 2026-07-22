@@ -39,9 +39,18 @@ export async function GET(request: Request) {
       return NextResponse.json({ status: 'skip', message: 'Sedang di luar jendela waktu sinkronisasi (Tidur). Tidak ada data ditarik.' });
     }
 
+    const offsetParam = urlParams.get('offset');
+    const limitParam = urlParams.get('limit');
+    
     // 3. Ambil Roster & Hari
     const hariKe = forceHari ? parseInt(forceHari, 10) : await getTodayHari();
-    const roster = await getRosterEntries();
+    const fullRoster = await getRosterEntries();
+    
+    // Terapkan chunking jika ada offset/limit
+    let roster = fullRoster;
+    const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+    const limit = limitParam ? parseInt(limitParam, 10) : fullRoster.length;
+    roster = fullRoster.slice(offset, offset + limit);
     
     const payloadRows: (string|number|null)[][] = Array(roster.length).fill([]);
     const targetLabel = logNumber === 1 ? 'Log 1 di 07.00 WIB' : 'Log 2 di 13.30 WIB';
@@ -52,89 +61,101 @@ export async function GET(request: Request) {
     const wibDate = new Date(now.getTime() + offsetMs);
     const dateStr = wibDate.toISOString().replace('T', ' ').substring(0, 19);
 
-    // 4. Proses 390 Fasil dengan Sliding Window Concurrency (Max 50 Paralel)
+    // 4. Proses Fasil dengan Sliding Window Concurrency
     let successCount = 0;
     let errorCount = 0;
 
-    // Fungsi pembungkus untuk membatasi jumlah eksekusi paralel
     async function processWithConcurrency(items: typeof roster, maxConcurrent: number) {
       let index = 0;
       const promises: Promise<void>[] = [];
 
-        const worker = async () => {
-          while (index < items.length) {
-            const currentIndex = index++;
-            const entry = items[currentIndex];
+      const worker = async () => {
+        while (index < items.length) {
+          const currentIndex = index++;
+          const entry = items[currentIndex];
 
-            let attempt = 0;
-            let success = false;
+          let attempt = 0;
+          let success = false;
 
-            while (attempt < 3 && !success) {
-              attempt++;
+          while (attempt < 3 && !success) {
+            attempt++;
+            try {
+              if (!entry.urlLK) throw new Error('Tidak ada URL');
+              const sid = extractSpreadsheetId(entry.urlLK);
+              if (!sid) throw new Error('ID Spreadsheet tidak valid');
+              
+              const url = gvizCsvUrl(sid, 'Log') + `&t=${Date.now()}`;
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 30000);
+              
+              let res;
               try {
-                if (!entry.urlLK) throw new Error('Tidak ada URL');
-                const sid = extractSpreadsheetId(entry.urlLK);
-                if (!sid) throw new Error('ID Spreadsheet tidak valid');
-                
-                // Anti-cache super kuat
-                const url = gvizCsvUrl(sid, 'Log') + `&t=${Date.now()}`;
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 30000);
-                
-                let res;
-                try {
-                  res = await fetch(url, { cache: 'no-store', signal: controller.signal });
-                } finally {
-                  clearTimeout(timeoutId);
-                }
+                res = await fetch(url, { cache: 'no-store', signal: controller.signal });
+              } finally {
+                clearTimeout(timeoutId);
+              }
 
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const csv = await res.text();
-                
-                const parsed = Papa.parse<string[]>(csv, { header: false, skipEmptyLines: true });
-                let foundRow: string[] | null = null;
-                for (let i = 2; i < parsed.data.length; i++) {
-                  const row = parsed.data[i];
-                  if ((row[0] || '').trim() === targetLabel && parseInt((row[1] || '').trim(), 10) === hariKe) {
-                    foundRow = row;
-                    break;
-                  }
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const csv = await res.text();
+              
+              const parsed = Papa.parse<string[]>(csv, { header: false, skipEmptyLines: true });
+              let foundRow: string[] | null = null;
+              for (let i = 2; i < parsed.data.length; i++) {
+                const row = parsed.data[i];
+                if ((row[0] || '').trim() === targetLabel && parseInt((row[1] || '').trim(), 10) === hariKe) {
+                  foundRow = row;
+                  break;
                 }
-                
-                if (foundRow) {
-                  payloadRows[currentIndex] = [dateStr, logNumber, hariKe, entry.namaFasil, ...foundRow.slice(6, 6 + 27)];
-                  successCount++;
-                } else {
-                  errorCount++;
-                  payloadRows[currentIndex] = [dateStr, logNumber, hariKe, entry.namaFasil, ...Array(27).fill("")];
-                }
-                success = true;
-              } catch (e: any) {
-                if (attempt === 3) {
-                  errorCount++;
-                  payloadRows[currentIndex] = [dateStr, logNumber, hariKe, entry.namaFasil, ...Array(27).fill("")];
-                } else {
-                  await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
-                }
+              }
+              
+              if (foundRow) {
+                payloadRows[currentIndex] = [dateStr, logNumber, hariKe, entry.namaFasil, ...foundRow.slice(6, 6 + 27)];
+                successCount++;
+              } else {
+                errorCount++;
+                payloadRows[currentIndex] = [dateStr, logNumber, hariKe, entry.namaFasil, ...Array(27).fill("")];
+              }
+              success = true;
+            } catch (e: any) {
+              if (attempt === 3) {
+                errorCount++;
+                payloadRows[currentIndex] = [dateStr, logNumber, hariKe, entry.namaFasil, ...Array(27).fill("")];
+              } else {
+                await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
               }
             }
           }
-        };
-
-        for (let i = 0; i < maxConcurrent; i++) {
-          promises.push(worker());
         }
-        await Promise.all(promises);
-      }
+      };
 
-      // Jalankan maksimal 10 request sekaligus (Mencegah Google Throttling)
-      await processWithConcurrency(roster, 10);
+      for (let i = 0; i < maxConcurrent; i++) {
+        promises.push(worker());
+      }
+      await Promise.all(promises);
+    }
+
+    await processWithConcurrency(roster, 10);
+
+    // Jika sistem dipanggil dengan offset/limit, KEMBALIKAN DATA LANGSUNG (tidak perlu tembak webhook)
+    // Biarkan script penelepon (cronPinger) yang merangkai dan menyimpannya.
+    if (offsetParam || limitParam) {
+      return NextResponse.json({
+        status: 'success',
+        offset,
+        limit,
+        hariKe,
+        logNumber,
+        berhasilTarik: successCount,
+        belumMengisiAtauError: errorCount,
+        rows: payloadRows
+      });
+    }
 
     if (payloadRows.length === 0) {
       return NextResponse.json({ status: 'success', message: 'Selesai ditarik. Tapi belum ada satupun fasilitator yang mengisi baris ini.' });
     }
 
-    // 5. Tembak ke Webhook Apps Script untuk ditulis ke masterLog
+    // 5. Fallback Webhook (Untuk pemanggilan legacy tanpa chunking)
     const webhookUrl = process.env.SYNC_WEBHOOK_URL;
     const webhookSecret = process.env.SYNC_SECRET_KEY;
 
